@@ -16,7 +16,7 @@ from repowatch.runtime.engine import FormalRuntime, StagePlan, ToolBinding
 from repowatch.runtime.prototype import MissingStructuredResult
 
 
-def start(k, *, policy=None, mode="triage", model_calls=30):
+def start(k, *, policy=None, mode="triage", model_calls=30, max_input_tokens=None):
     tasks = TaskRecords(k.store)
     repo = tasks.register_repository("runtime-fixture", admission_mode="all_bugs")
     task = tasks.ensure_task(repo, "runtime-fixture", mode=mode, now=0)
@@ -34,6 +34,7 @@ def start(k, *, policy=None, mode="triage", model_calls=30):
                             "content_manifest_sha256": "b" * 64,
                         },
                         "runtime_policy": policy or {},
+                        **({"max_input_tokens": max_input_tokens} if max_input_tokens else {}),
                     }
                 )
             },
@@ -157,6 +158,41 @@ def services(k, wire):
     k.clock = lambda: 0
     k.adapter = ProviderAdapter(k.providers, transport=httpx.MockTransport(wire))
     return k
+
+
+@pytest.mark.parametrize("over_limit", [False, True])
+def test_large_tool_evidence_stays_readable_without_granting_filesystem_tools(kernel, over_limit):
+    k = kernel
+    bind(k)
+    diagnose(k, "processor")
+    _, token = start(k, max_input_tokens=100000)
+    wire, calls = fixture_wire()
+    services(k, wire)
+    reads = []
+    evidence = "x" * (100001 if over_limit else 81001)
+
+    @tool(description="Read the controlled large evidence")
+    def read_source(path: str) -> str:
+        assert path == "fixture.py"
+        reads.append(path)
+        return evidence
+
+    stage = replace(plan(reads), tools=(ToolBinding(read_source, BudgetAmounts(active_ms=1000)),))
+    if over_limit:
+        with pytest.raises(PermissionError, match="输入上限"):
+            FormalRuntime(k).run(token, stage)
+        assert len(calls) == 1
+        return
+    result = FormalRuntime(k).run(token, stage)
+    assert result.status == "completed"
+    tool_messages = [m for call in calls for m in call["messages"] if m["role"] == "tool"]
+    assert any(m["content"] == evidence for m in tool_messages)
+    assert all("large_tool_results" not in str(m["content"]) for m in tool_messages)
+    assert all(
+        t["function"]["name"] not in {"read_file", "write_file", "edit_file", "execute"}
+        for call in calls
+        for t in call.get("tools", [])
+    )
 
 
 def test_scan_missing_structured_output_can_be_rescanned_without_global_block(kernel, monkeypatch):

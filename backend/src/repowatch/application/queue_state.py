@@ -46,7 +46,7 @@ def is_ready(records: RecordPort, task) -> bool:
             return False
         valid_batch = True
         if repository["identity_json"] is not None:
-            from repowatch.domain.task_records import content_digest
+            from repowatch.application.scans import scan_configuration_digest
 
             batch = (
                 records.one("scan_batches", id=repository["scan_ready_batch_id"])
@@ -58,7 +58,7 @@ def is_ready(records: RecordPort, task) -> bool:
                 source_task = records.one("tasks", id=batch["task_id"])
                 valid_batch = json.loads(batch["environment_json"]).get(
                     "configuration_sha256"
-                ) == content_digest(json.loads(source_task["configuration_json"]))
+                ) == scan_configuration_digest(json.loads(source_task["configuration_json"]))
         return (
             valid_batch
             and task["issue_id"] is not None

@@ -83,3 +83,31 @@ def test_candidate_commit_preserves_exact_bytes_modes_new_files_and_deletions(tm
 def test_object_paths_cannot_escape(tmp_path, identifier):
     with pytest.raises(ValueError):
         GitObjects(tmp_path / "objects").initialize(identifier)
+
+
+def test_pr_integration_preserves_external_head_and_current_base(tmp_path):
+    fixture = create_fixture(tmp_path)
+    objects = GitObjects(tmp_path / "objects")
+    original = objects.import_bundle("repo", fixture["bundle"])
+    files = {"base.txt": ("100644", b"original\n")}
+    parent = objects.commit_files("repo", original, files, message="base")["sha"]
+    head = objects.commit_files(
+        "repo", parent, {**files, "external.txt": ("100644", b"keep\n")}, message="external"
+    )["sha"]
+    base = objects.commit_files(
+        "repo", parent, {**files, "current.txt": ("100644", b"new\n")}, message="target"
+    )["sha"]
+    integrated = objects.integrate("repo", base, head)
+    assert {item["path"] for item in objects.entries("repo", integrated)} == {
+        "base.txt",
+        "external.txt",
+        "current.txt",
+    }
+    assert (
+        objects.run(objects.repository("repo"), "merge-base", head, integrated).decode().strip()
+        == head
+    )
+    assert (
+        objects.run(objects.repository("repo"), "merge-base", base, integrated).decode().strip()
+        == base
+    )

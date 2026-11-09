@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from urllib.parse import quote
 
 import httpx
@@ -50,6 +51,24 @@ class GitHubReadAdapter:
                     if response.status_code == 304:
                         return 304, None, response.headers
                     if not response.is_success:
+                        if response.status_code == 429 or (
+                            response.status_code == 403
+                            and (
+                                response.headers.get("x-ratelimit-remaining") == "0"
+                                or response.headers.get("retry-after")
+                            )
+                        ):
+                            try:
+                                retry = max(
+                                    float(response.headers.get("retry-after", "60")),
+                                    float(response.headers.get("x-ratelimit-reset", "0"))
+                                    - time.time(),
+                                )
+                            except ValueError:
+                                retry = 60
+                            raise GitHubReadError(
+                                "rate_limited", retry_after=max(1, min(86400, retry))
+                            )
                         raise GitHubReadError(
                             "authentication_or_permission"
                             if response.status_code in {401, 403}
@@ -124,6 +143,90 @@ class GitHubReadAdapter:
             raise GitHubReadError("invalid_branch_sha")
         return digest
 
+    def synchronization_page(
+        self, owner, name, endpoint, *, page=1, number=None, ref=None, params=None, etag=None
+    ):
+        if type(page) is not int or not 1 <= page <= 1000:
+            raise ValueError("同步页码无效")
+        prefix = self._path(owner, name)
+        if endpoint == "issues":
+            suffix = "/issues"
+        elif endpoint in {"comments", "reviews", "review_comments", "pull"}:
+            identifier = self._number(number)
+            suffix = {
+                "comments": "/issues/" + identifier + "/comments",
+                "reviews": "/pulls/" + identifier + "/reviews",
+                "review_comments": "/pulls/" + identifier + "/comments",
+                "pull": "/pulls/" + identifier,
+            }[endpoint]
+        elif endpoint in {
+            "checks",
+            "statuses",
+            "branch",
+            "branch_rules",
+            "branch_protection",
+            "commit",
+        }:
+            if not isinstance(ref, str) or not ref.strip():
+                raise ValueError("同步 ref 无效")
+            encoded = quote(ref, safe="")
+            suffix = {
+                "checks": "/commits/" + encoded + "/check-runs",
+                "statuses": "/commits/" + encoded + "/statuses",
+                "branch": "/branches/" + encoded,
+                "branch_rules": "/rules/branches/" + encoded,
+                "branch_protection": "/branches/" + encoded + "/protection/required_status_checks",
+                "commit": "/git/commits/" + encoded,
+            }[endpoint]
+        else:
+            raise ValueError("同步端点无效")
+        query = {"per_page": 100, "page": page}
+        if endpoint == "issues":
+            query.update(state="all", sort="updated", direction="asc")
+            if params and params.get("since"):
+                query["since"] = params["since"]
+        elif endpoint == "checks":
+            query["filter"] = "all"
+        status, body, headers = self._get(prefix + suffix, params=query, etag=etag)
+        if status == 304:
+            return ReadPage(304)
+        if endpoint in {"branch", "pull", "branch_protection", "commit"}:
+            items = [body]
+        else:
+            items = (
+                body.get("check_runs") if endpoint == "checks" and isinstance(body, dict) else body
+            )
+        if (
+            not isinstance(items, list)
+            or len(items) > 100
+            or any(not isinstance(item, dict) for item in items)
+        ):
+            raise GitHubReadError("invalid_sync_page")
+        if endpoint == "branch":
+            digest = body.get("commit", {}).get("sha")
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{40}", digest):
+                raise GitHubReadError("invalid_branch_sha")
+        elif endpoint == "commit":
+            if (
+                body.get("sha") != ref
+                or not isinstance(body.get("parents"), list)
+                or any(
+                    not isinstance(parent, dict)
+                    or not isinstance(parent.get("sha"), str)
+                    or not re.fullmatch(r"[0-9a-f]{40}", parent["sha"])
+                    for parent in body["parents"]
+                )
+            ):
+                raise GitHubReadError("invalid_merge_commit")
+        elif endpoint not in {"branch_rules", "branch_protection"} and any(
+            type(item.get("id")) is not int or item["id"] <= 0 for item in items
+        ):
+            raise GitHubReadError("invalid_sync_identity")
+        received = headers.get("etag")
+        if received and (len(received) > 512 or "\n" in received or "\r" in received):
+            raise GitHubReadError("invalid_etag")
+        return ReadPage(status, tuple(items), received, 'rel="next"' in headers.get("link", ""))
+
     @staticmethod
     def _number(number):
         if type(number) is not int or not 1 <= number <= 2147483647:
@@ -160,7 +263,7 @@ class GitHubReadAdapter:
                 return result
         raise GitHubReadError("collection_incomplete")
 
-    def issue_context(self, owner, name, number):
+    def issue_context(self, owner, name, number, *, managed_pr_id=None):
         prefix = self._path(owner, name)
         issue_path = prefix + "/issues/" + self._number(number)
         issue = self.issue(owner, name, number)
@@ -183,6 +286,23 @@ class GitHubReadAdapter:
         for pull_number in sorted(pulls):
             pull = self.pull_request(owner, name, pull_number)
             pull["files"] = self.collection(prefix + "/pulls/" + str(pull_number) + "/files")
+            if str(pull["id"]) == managed_pr_id:
+                pull["reviews"] = self.collection(
+                    prefix + "/pulls/" + str(pull_number) + "/reviews"
+                )
+                pull["review_comments"] = self.collection(
+                    prefix + "/pulls/" + str(pull_number) + "/comments"
+                )
+                if pull.get("merge_commit_sha"):
+                    try:
+                        commit = self.synchronization_page(
+                            owner, name, "commit", ref=pull["merge_commit_sha"]
+                        ).items[0]
+                        pull["merge_parents"] = [parent["sha"] for parent in commit["parents"]]
+                    except GitHubReadError as error:
+                        if error.code != "not_found":
+                            raise
+                        pull["merge_parents"] = []
             details.append(pull)
         latest = self.issue(owner, name, number)
         if latest != issue:

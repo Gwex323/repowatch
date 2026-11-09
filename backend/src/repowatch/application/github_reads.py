@@ -1,16 +1,16 @@
 """轻量只读同步的来源记录与待分析信号；不推理、不领取重任务。"""
 
 import json
-from datetime import datetime
 from uuid import uuid4
 
 from repowatch.adapters.windows_jobs import current_process, process_identity
 from repowatch.application.budgets import human, remember_operation, replay_operation
 from repowatch.application.credentials import CredentialError
 from repowatch.application.github_ports import GitHubReadError, GitHubReadPort
+from repowatch.application.remote_observations import save_issue
 from repowatch.application.storage import ConflictError
 from repowatch.application.task_records import TaskRecords, business_event, required
-from repowatch.domain.task_records import canonical_json, content_digest, require_time, stable_id
+from repowatch.domain.task_records import canonical_json, require_time
 
 
 def issue_input(item):
@@ -178,59 +178,8 @@ class GitHubReads:
         return self.status(read_id)
 
     def _observe(self, repository_id, item, *, now):
-        kind = "pull_request" if "pull_request" in item else "issue"
-        object_id = str(item["id"])
-        digest = content_digest(item)
-        identifier = stable_id("github-observation", repository_id, kind, object_id, digest)
-        identity = {"repository_id": repository_id, "kind": kind, "object_id": object_id}
-        with self.store.read() as records:
-            old = records.one("github_object_heads", **identity)
-            previous = (
-                required(records, "github_observations", id=old["observation_id"]) if old else None
-            )
-            if previous and previous["id"] != identifier:
-                old_time, new_time = previous["remote_version"], item.get("updated_at")
-                if (
-                    not old_time
-                    or not new_time
-                    or datetime.fromisoformat(new_time.replace("Z", "+00:00"))
-                    <= datetime.fromisoformat(old_time.replace("Z", "+00:00"))
-                ):
-                    raise GitHubReadError("source_order_uncertain")
-        signal_id = None
-        if kind == "issue":
-            task = self.tasks.ensure_task(
-                repository_id, "github:issue:" + object_id, issue_id=object_id, now=now
-            )
-            payload = issue_input(item)
-            signal_id = self.tasks.observe(
-                task, "github:issue:" + object_id, content_digest(payload), payload, now=now
-            )
         with self.store.write() as records:
-            if records.one("github_observations", id=identifier) is None:
-                records.add(
-                    "github_observations",
-                    {
-                        "id": identifier,
-                        **identity,
-                        "payload_sha256": digest,
-                        "payload_json": canonical_json(item),
-                        "remote_version": item.get("updated_at"),
-                    },
-                )
-                records.add(
-                    "memory_source_facts",
-                    {
-                        "observation_id": identifier,
-                        "repository_id": repository_id,
-                        "signal_id": signal_id,
-                        "visibility": "repository",
-                    },
-                )
-            if records.one("github_object_heads", **identity):
-                records.change("github_object_heads", identity, {"observation_id": identifier})
-            else:
-                records.add("github_object_heads", {**identity, "observation_id": identifier})
+            identifier, _ = save_issue(self.store, records, repository_id, item, now)
         return identifier
 
     def reconcile(self):

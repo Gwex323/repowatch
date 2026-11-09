@@ -31,11 +31,15 @@ def acceptance_view(records, task):
         return None
     repository = records.one("repositories", id=task["repository_id"])
     current = acceptance_current(specification, task, repository)
+    carry = records.one(
+        "acceptance_carryovers", task_id=task["id"], revision=task["acceptance_revision"]
+    )
     return {
         **{key: value for key, value in specification.items() if key != "content_json"},
         "content": json.loads(specification["content_json"]),
         "current": current,
         "approved": current and specification["approved_revision"] == specification["revision"],
+        "approval_source_revision": carry["source_revision"] if carry else None,
     }
 
 

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { mutate, type State } from "./client";
 import { Scans } from "./Scans";
+import { Synchronization } from "./Synchronization";
 
 type Preflight = { preflight_id: string; identity: { github_id: string; maintained: boolean; target_sha: string; execution_login: string; target_branch: string; publication: { owner: string; name: string } } };
 
@@ -89,6 +90,7 @@ export function Repositories({ state, run, openTask }: { state: State; run: (act
             <p>修订 {repository.revision} · 导入代次 {repository.import_epoch} · 目标 {repository.target_branch || "未配置"}</p>
             <p>扫描就绪：{repository.scan_ready_sha || "未就绪"} · {repository.policy?.mode ?? "待配置"}</p>
             <Scans repositoryId={repository.id} run={run} openTask={openTask} />
+            <Synchronization repository={repository} run={run} />
             <button onClick={() => { setOwner(repository.github_owner ?? ""); setName(repository.github_name ?? ""); setTarget(repository.target_branch ?? ""); setPath(repository.contribution_path ?? "direct"); setReference(repository.credential_reference ?? ""); setForkOwner(repository.publication?.owner ?? ""); setForkName(repository.publication?.name ?? ""); setPreflight(null); }}>载入并重新预检</button>
             <button onClick={() => void run(() => mutate(`/control/${repository.paused ? "resume" : "pause"}`, { repository_id: repository.id }, repository.revision))}>{repository.paused ? "显式恢复仓库" : "暂停仓库"}</button>
         </article>)}

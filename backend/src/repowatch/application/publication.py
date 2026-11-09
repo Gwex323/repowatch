@@ -234,10 +234,11 @@ class Publisher:
                     str(previous_pull["id"]) != binding["pr_id"]
                     or previous_pull["state"] != "open"
                     or previous_pull.get("merged_at")
-                    or previous_pull["head"]["sha"] != request["head_sha"]
+                    or previous_pull["head"]["sha"]
+                    != (frozen.get("publication_head_sha") or request["head_sha"])
                 ):
                     raise PermissionError("原 PR 已关闭或远端 head 变化，先整合并重新验证")
-                expected_old = request["head_sha"]
+                expected_old = previous_pull["head"]["sha"]
                 objects = self.evidence.workspaces.backend.objects
                 ancestor = (
                     objects.run(

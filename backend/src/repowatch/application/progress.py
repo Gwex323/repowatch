@@ -144,6 +144,9 @@ class ProgressService:
                     },
                 )
             empty = 0 if new else current["consecutive_empty"] + 1
+            goal_completed = (
+                evidence.get("goal_completed") is True and evidence["status"] == "completed"
+            )
             reason = None
             attempts = []
             for task in records.find("tasks", budget_owner_task_id=owner):
@@ -169,11 +172,16 @@ class ProgressService:
             )
             if evidence["status"] == "timed_out":
                 reason = "stage_timeout"
-            elif not new and oscillating:
+            elif not goal_completed and not new and oscillating:
                 reason = "oscillation"
-            elif empty >= policy.no_progress_attempts:
+            elif not goal_completed and empty >= policy.no_progress_attempts:
                 reason = "no_progress"
-            if current["retry_authorization_id"] and not current["retry_satisfied"] and not new:
+            if (
+                current["retry_authorization_id"]
+                and not current["retry_satisfied"]
+                and not new
+                and not goal_completed
+            ):
                 permit = required(
                     records, "retry_authorizations", id=current["retry_authorization_id"]
                 )
@@ -184,7 +192,7 @@ class ProgressService:
                 "consecutive_empty": empty,
                 "progress_revision": current["progress_revision"] + len(new),
                 "blocked_code": reason or current["blocked_code"],
-                "retry_satisfied": int(bool(new) or current["retry_satisfied"]),
+                "retry_satisfied": int(bool(new) or goal_completed or current["retry_satisfied"]),
             }
             records.change(
                 "progress_windows", {"owner_task_id": owner, "objective_key": objective}, changes

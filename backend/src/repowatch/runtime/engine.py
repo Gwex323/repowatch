@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from deepagents import create_deep_agent
 from deepagents.backends import StateBackend
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.messages import AIMessage
@@ -275,7 +276,10 @@ class FormalRuntime:
                     model=model,
                     tools=[item.tool for item in plan.tools],
                     backend=StateBackend(),
-                    middleware=[boundary],
+                    # Built-in file tools are intentionally outside the role policy.
+                    # Keep evidence inline so eviction cannot replace it with an
+                    # unreadable file reference; model input limits still apply.
+                    middleware=[FilesystemMiddleware(tool_token_limit_before_evict=None), boundary],
                     subagents=children,
                     response_format=ToolStrategy(StructuredResult, handle_errors=False),
                     checkpointer=saver,

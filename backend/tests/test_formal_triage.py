@@ -14,6 +14,48 @@ from repowatch.runtime.engine import FormalRuntime
 from repowatch.worker.triage import TriageCoordinator
 
 
+def test_triage_projection_keeps_review_evidence_and_human_input_without_duplicate_payloads():
+    from copy import deepcopy
+
+    from repowatch.worker.triage import triage_evidence
+
+    pull = {
+        "id": 16,
+        "head": {"sha": "abc"},
+        "user": {"login": "reviewer", "avatar_url": "large"},
+        "body": "See https://example.com/proof",
+        "files": [{"path": "a.py", "patch": "+fix"}],
+        "reviews": [{"id": 3, "body": "handle zero", "commit_id": "abc"}],
+        "url": "transport",
+    }
+    context = {"facts": {"pull_requests": [pull]}, "digest": "version"}
+    snapshot = {
+        "input": {},
+        "acceptance": None,
+        "admission_revision": 1,
+        "signals": [
+            {
+                "id": "s",
+                "kind": "feedback",
+                "revision": 2,
+                "payload": {"pull_requests": [pull], "review_scope_explanation": "preserve goal"},
+            }
+        ],
+    }
+    original = deepcopy(snapshot)
+    result = triage_evidence(
+        snapshot, context, {"snapshot_json": json.dumps(pull), "head_sha": "abc"}
+    )
+    observed = result["remote_context"]["facts"]["pull_requests"][0]
+    assert observed["body"] == pull["body"]
+    assert observed["files"] == pull["files"] and observed["reviews"] == pull["reviews"]
+    assert observed["head"] == pull["head"] and observed["user"]["login"] == "reviewer"
+    assert result["signals"][0]["payload"]["review_scope_explanation"] == "preserve goal"
+    assert "pull_requests" not in result["signals"][0]["payload"]
+    assert "snapshot_json" not in result["pr_lifecycle"]
+    assert snapshot == original
+
+
 @pytest.mark.parametrize(
     "scenario",
     ["bug", "sensitive", "candidate_sensitive", "feature", "missing", "multi_goal", "converged"],

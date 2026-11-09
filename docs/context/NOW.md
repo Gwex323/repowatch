@@ -1,21 +1,27 @@
 # 当前状态与接续
 
-核验日期：2026-11-06，范围为 P3 修复、候选 Issue、受控发布与本地验收。P2 已提交为 `625fb2c` 并推送至公共仓库 `Gwex323/repowatch`。当前位于 `feature/p3-repair-publication`，P3 实现提交 `62508f6` 已推送至同名分支。已接入分诊／批准、修复探针、冻结候选、回归／独审、外部合并核验、候选 Issue 查重和直接／Fork 发布适配。P3 15 项全部通过，整体任务为 56／89；直接与 Fork 两种发布路径已由 RepoWatch 产品在真实受控仓库完成 Issue→分支→PR，模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。P4—P6 和最终用户验收未完成。
+核验日期：2026-11-09。P4 持续同步、PR／CI、评审及原 PR 返修的阶段验收已完成，P4 为 13／13，整体任务为 69／89。当前分支 `feature/p4-scheduled-sync` 的改动尚未提交或推送。受控真实 GitHub 生命周期使用确定性离线模型、真实 Docker／Git／GitHub：PR #16 返修后合并，PR #18 解决冲突并返修后关闭未合并；两种终态均由产品同步入库。P5—P6、真实付费模型效果和最终用户验收仍未完成。
 
 ## 当前目标与进展
 
 - P0 与全部 P1 任务已完成。P1 提供正式串行执行位、累计预算和有限续期、实际命令监督、显式恢复、角色能力／有限重试、回环会话／API／UI、持久无进展检测及 GitHub 只读来源接口。E1 费用仍待按账单核实。P0 的对象交接、恢复／调度及编码选型结论沿用[门槛汇总](../development/p0-summary.md)和[编码资产评测](../development/embedding-evaluation.md)，不替代后续真实仓库验收。
 - 需求与最终架构已有基线、实施契约和 ADR，来源路由见 [项目索引](../../PROJECT_INDEX.md)。本次不重启需求访谈。
-- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 56／89；P3 已通过，本变更继续保留至最终归档。
-- 开发安装见[开发入口](../development/README.md)，API／Worker 与人工入口见[本地控制](../development/local-control.md)，P1 引擎验收见[运行验收](../development/runtime.md#复跑与实验映射)。P2 扫描与 P3 修复发布均已通过阶段验收，当前 schema 为 `0021_distillation_state`，测试只迁移临时数据库。尚未执行真实付费模型修复、用户数据库迁移或完整产品用户验收。
-- 已补充目标分支 SHA 读取和仓库手动“检查更新”的规划契约与验收场景；实现和运行验证仍待对应阶段完成。
+- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 69／89；P3 与 P4 已通过阶段验收，本变更继续保留至最终归档。
+- 开发安装见[开发入口](../development/README.md)，API／Worker 与人工入口见[本地控制](../development/local-control.md#p4-持续同步与-pr-评审返修)，P1 引擎验收见[运行验收](../development/runtime.md#复跑与实验映射)。当前代码要求 schema `0024_pr_lifecycle`，本轮迁移临时测试库及原有两套受控 P3 验收库，迁移前已备份。P4 已向真实 GitHub 写入两条请求修改评审；未调用付费模型、迁移用户数据库或执行最终产品用户验收。
+- 定时、启动补偿及人工“检查更新”已接入目标分支 SHA 读取和版本补扫；重复目标观测或回到已排队版本时复用相应扫描、保留原预算和导入代次。PR／CI／评审按来源与版本保存，范围变化通过界面确认，返修保留外部 head 并对当前 base 重验；当前验收证据见下方。
 - 最新决定：本地扫描缺陷先完整查重再创建或关联 GitHub Issue；外部开放 PR 同问题等待、无关继续、关系不明请求用户判断。P3 已接入这些入口及人工决定持久回读，远端 PR／评论变化会递增反馈并重新分诊。已合并 PR 须验证提交进入当前目标历史并运行真实探针，已解决记为 `externally_resolved`，目标仍失败则以当前版本继续验证；不会凭 `merged` 自证解决。
 - 最新循环与预算决定：按真实产物检测无进展及振荡；复杂任务有进展但预计额度不足时，耗尽前正常等待用户批准有限追加，账本与检测历史不清零；已耗尽／无进展等仍全局阻塞且不因加额自动恢复。初值与恢复条件见[实施契约 §3](../implementation-contracts.md#无进展检测)。预算、检测、UI 和正式图集成已完成受控验收；真实扫描／修复事实生产及生产样本阈值校准由后续适配补齐。
 - 最新准入与交付决定：仓库三种准入模式及默认值、六类分诊、他人占用／敏感排除、默认不 assign／评论而可启用认领评论、人工优先级与自动严重程度／老化、相关输入变化重分诊已明确；受管 Issue／PR 双向生命周期唯一、返修原 PR、关闭不新建，外部 PR 作为观测保存。权威规则见[准入契约](../implementation-contracts.md#issue-准入与分诊)及[一一对应契约](../implementation-contracts.md#issue-与-pr-一一对应)，仍待产品实施验证。
 
 ## 阻塞与待核实
 
-- 用户已授权准备专用测试仓库并继续 P3 开发；当前分支 `feature/p3-repair-publication`，实现提交 `62508f6` 已推送，保留原有未跟踪临时目录。`Gwex323/repowatch-p3-sandbox`（ID `1447899115`）及第二个账户 Fork `gwx541/repowatch-p3-sandbox`（ID `1447913051`）完成本轮专用验收。2026-11-06 RepoWatch 产品真实完成直接路径 Issue #15→PR #16 与 Fork 路径 Issue #17→PR #18，身份、base/head ref 与 SHA 匹配，两条发布意图均为 `confirmed`；模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。此前 Issue #1／#3、PR #2／#4 为人工 API 驱动的仓库准备对象。沙箱内外认证可见性不同，不代表凭据失效。
+- P4 已无待处理的验收阻塞。PR #18 的 `tests/probe.py` 双方新增冲突经用户授权在隔离工作区解决，保留乘法与减法检查；合并提交 `8fb5d5efa7b3b9890ef33a3ba708ad638f224528` 更新原分支，产品随后完成返修。
+
+
+
+
+
+- 用户已授权 P4 开发；当前分支 `feature/p4-scheduled-sync`，保留原有未跟踪临时目录。P3 的 `Gwex323/repowatch-p3-sandbox`（ID `1447899115`）及第二个账户 Fork `gwx541/repowatch-p3-sandbox`（ID `1447913051`）已完成专用验收。2026-11-06 RepoWatch 产品真实完成直接路径 Issue #15→PR #16 与 Fork 路径 Issue #17→PR #18，身份、base/head ref 与 SHA 匹配，两条发布意图均为 `confirmed`；模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。此前 Issue #1／#3、PR #2／#4 为人工 API 驱动的仓库准备对象。沙箱内外认证可见性不同，不代表凭据失效。
 - Docker Desktop 此前停止，首次重跑为 `466 passed, 4 failed, 1 skipped`；四项均因引擎不可用。启动已安装 Docker 后容器专项 `15 passed`，后续全套 `491 passed, 1 skipped`。沙箱内 TestClient 挂起在沙箱外基础测试 `2 passed` 后解除；这些环境失败不再作为代码阻塞。最终证据防伪／原 PR 更新等后续修改的最新报告见下方，不沿用旧全量宣称最终冻结通过。
 - P0 六项关键切片均已通过，P1 已放行；但费用账单、真实 GitHub 写入、完整 E11 安装／启停／交付链路、LFS 实体与子模块对象仍未完成，含这些内容的仓库保持阻塞。1.9 主选 `jinaai/jina-embeddings-v2-base-zh`（Apache-2.0、768 维、0.64GB、离线加载通过），代码备选为 `jinaai/jina-embeddings-v2-base-code`；评测仅覆盖 22 条语料／12 条查询，生产召回与运行时锁仍需在 P5 前复核。编码运行时未加入默认依赖，模型资产未固定摘要。
 - P1 已无需要人工介入的开发阻塞。普通仓库执行需 P2 的身份／工作区／Runner／扫描接入；本轮只读 GitHub 通过 HTTP 夹具验证，未访问真实仓库。P1 通过不代表真实修复发布、完整产品部署或最终用户验收通过。
@@ -23,11 +29,24 @@
 
 ## 下一步
 
-1. P3 已通过；按 tasks 进入 P4，先实现单 API 同步循环、独立同步租约与触发合并（8.1），再推进 Issue／PR 同步、重分诊和 PR 评审返修。不得把 P3 的确定性模型夹具结果当作真实模型效果证据。
-2. 保留 `Gwex323/repowatch-p3-sandbox` 与 `gwx541/repowatch-p3-sandbox` 现有 Issue #15／#17、PR #16／#18 作为 P4 远端输入；未获授权不合并、关闭或删除。重复的中间测试 Issue #5—#12 已关闭。
+1. P4 阶段已完成；如继续后续阶段，按任务依赖进入 P5。真实模型、安装交付及最终用户验收仍按各自阶段验证。
+2. 仅使用 `Gwex323/repowatch-p3-sandbox` 与 `gwx541/repowatch-p3-sandbox` 现有 Issue #15／#17、PR #16／#18 作为本次受控远端输入；保留其他对象，不扩展写入范围。重复的中间测试 Issue #5—#12 已关闭。
 3. 完整安装启停、备份、产品级故障集及真实付费修复发布仍按 P6 和对应阶段验收，不提前标记最终产品完成。
 
 ## 证据入口与时效
+
+- 2026-11-09 提交前评审修复：`active_reviews` 不再让同作者后续 `COMMENTED`／`PENDING` 覆盖 `CHANGES_REQUESTED`；仍按时间／ID 取最新有效评审决定，后续 `APPROVED`／`DISMISSED` 清除请求修改状态。新增顺序／逆序、批准／撤销及真实同步入库回归；原代码的两条 COMMENTED 用例失败，修复后生命周期／上下文／发布套件 `60 passed in 59.40s`，相关 Ruff 检查／格式和 OpenSpec strict 通过。代码尚未提交或推送。
+- 2026-11-09 随后 Docker-enabled 全后端复跑：`595 passed, 1 skipped in 1061.67s`，命令 `REPOWATCH_DOCKER_TESTS=1 python -m pytest tests -q --tb=short`，于沙箱外运行以访问 Docker Desktop。该报告包含上述评审修复；唯一跳过项按测试自身的独立开关保留。未复跑浏览器或真实 GitHub 生命周期。
+- 2026-11-09 随后复跑 P4 浏览器验收：Edge 无头模式 7 项通过，报告 `.cache/p4-browser/1794205898505/report.json`，覆盖巡检配置、人工检查更新、目标漂移与补扫、暂停期间无模型、PR／CI／评审视图、范围批准和刷新持久化。沙箱内 Edge 管道关闭，沙箱外运行通过。
+
+- 2026-11-09 最终扫描补丁验证：`test_scans.py` 共 `51 passed in 159.96s`，覆盖 unittest 检查识别、检查项变化后的批次替代和恢复批次复用；相关 Ruff 通过，OpenSpec strict 通过。此结果不代表最后补丁之后全后端或浏览器已复跑。
+
+- 2026-11-09 真实 9.5 验收：[复跑入口](../../experiments/p4-github-acceptance.py)。PR #16／#18 的真实请求修改分别为 `5820716705`／`5820718033`；产品返修后的 head 分别为 `c90f76a8dc33536b8fdb8c4678a5de586f1c5843`／`e8a9c0486db43e32f03f6936a5a68456a138711e`。验收操作者合并 #16（merge commit `66600b0d96a0b11418bc7aee63dad214b177e1e1`），关闭未合并的 #18；产品再次同步，任务分别结束为 `pr_merged`／`pr_closed_unmerged`。模型为离线确定性夹具，Docker、Git 和 GitHub 操作为真实；两仓 CI policy 按用户确认无 required checks。#18 前置扫描的 unittest 基线通过，冲突解决后乘法和减法检查通过。此前响应兼容修复经 81 项关联回归、分诊修复经 37 项回归；这些专项后未复跑全后端或浏览器。未调用付费模型、迁移用户数据库或提交／推送项目代码。
+
+- 2026-11-09 授权前的 P4 本地验收：Docker-enabled 全后端基线 `575 passed, 1 skipped in 950.77s`（`.cache/p4-final-full.xml`），包含真实 Docker 的原 PR 返修、外部 head 保留、当前 base 整合、真实探针／独审及原预算。唯一跳过仍为独立开关控制的 Git 对象交接实验。纯 SHA 活跃判定、当前 base／merge 父节点和迟到分支响应保护补丁另经 `126 passed`（`.cache/p4-ref-binding.xml`）；这些补丁后未再次全量，不能把基线称为其完整冻结报告。7 项 Edge 验收为 `.cache/p4-browser/1794187155171/report.json`，配置／检查更新、目标漂移、暂停无模型、PR／CI／评审视图、范围批准及刷新持久化通过；前端 TypeScript／Vite、Ruff 检查／格式和 OpenSpec strict 通过。该批次使用临时数据库、HTTP／模型夹具、真实本地 Git／Docker及真实 GitHub 只读核对；不包含随后授权的 9.5 真实写入或其响应兼容修复。期间 Docker 停止造成的 `570 passed, 5 failed, 1 skipped` 为环境中断结果，被恢复后的基线取代，未计作通过。
+- 2026-11-09 GitHub 只读版本核对发现 PR #16 的 REST base 为历史 `3ebd49d8c6c8687c1915ad8bf8e582c217eea717`，实际目标 main 为 `e196700ff21fa018d536682511256c9efccc5a77`；其 merge commit `feb2a2768b5ea26bfc7f89c4ee13d2f4153eb79e` 的父节点仍为历史 base 与当前 PR head。因此实现与专项已拒绝用历史 base／旧 merge 的 CI 绿灯证明当前目标通过；该只读核对不替代真实返修和交付验收。
+
+- 2026-11-08 P4 首批（8.1）：同步底座与相关来源／API／仓库／存储回归 `51 passed`，JUnit `.cache/p4-sync-regression.xml`。覆盖真实双进程租约竞争、活进程超时不接管、定时／人工合并、读取期间新请求保留、停机仅补偿一次、失败保留成功时间、HTTP 分页及 304、API 启停排空。沙箱内 asyncio 测试挂起，通过报告来自授权沙箱外执行。未复跑全后端、Docker、前端或真实 GitHub，未调用付费模型、迁移用户数据库或提交／推送；完整 E13／E17 与 P4 阶段验收仍待后续。
 
 - 2026-11-06 P3 评审修复：已确认的本机认领评论不再自触发重分诊，评论 ID／作者／正文及未编辑状态均须匹配；外部新评论、伪造标记与编辑仍失效原关系。验收脚本移除固定 PR ID，并复用当前 Issue／PR、扫描及预算。定向回归 `79 passed`（`.cache/p3-review-regression.xml`）；最终代码的真实 Docker 认领评论 Bug／功能／重构集成 `3 passed`（`.cache/p3-claim-integration-final.xml`）。Fork 保留数据连续两次重跑成功，仍为原 Issue #17／PR #18 的 `waiting / pr_review`，未新增远端对象；第二次日志 `.cache/p3-repeat-review.log`。本轮未复跑全量后端或 UI，也未重新执行真实 GitHub 修复／发布；不沿用历史全量结果声称当前补丁已全量通过。
 

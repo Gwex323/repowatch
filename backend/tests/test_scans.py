@@ -408,6 +408,30 @@ def test_requirements_check_and_locked_offline_dependency_plan():
     assert dependency_plan(objects, "repo", manifest)["gaps"][0]["reason"].startswith("private_")
 
 
+def test_tracked_unittest_suite_does_not_assume_pytest_is_installed():
+    contents = {
+        "tests/test_sub_regression.py": (
+            b"import unittest\n\nclass SubTests(unittest.TestCase):\n"
+            b"    def test_difference(self):\n        self.assertEqual(sub(5, 2), 3)\n"
+        )
+    }
+    objects = SimpleNamespace(
+        entries=lambda *args: [
+            {"path": path, "oid": path, "mode": "100644", "kind": "blob"}
+            for path in contents
+        ],
+        blob=lambda repository, oid: contents[oid],
+    )
+    checks = checks_for(objects, "repo", inventory(objects, "repo", "sha"))
+    assert checks == [
+        {
+            "id": "python:unittest",
+            "argv": ["python", "-m", "unittest", "discover", "-s", "tests"],
+            "basis": "tracked unittest test modules",
+        }
+    ]
+
+
 @pytest.mark.parametrize(
     "contents,expected_step,expected_gap",
     [
@@ -811,6 +835,35 @@ def test_new_environment_batch_prevents_old_environment_completion(scan_setup):
     assert first != second
     with pytest.raises(ConflictError, match="环境或策略批次替代"):
         env.scans.validate_complete(env.token, first, now=3)
+
+
+def test_recovery_strategy_reuses_partial_batch_without_weakening_environment_checks(scan_setup):
+    env = scan_setup
+    first = env.scans.begin(env.token, env.fixture["commit"], {"image": "old"}, now=3)
+    env.scans.begin(env.token, env.fixture["commit"], {"image": "new"}, now=3)
+    env.queue.complete(env.token, now=4, state="queued")
+    with env.store.write() as records:
+        task = records.one("tasks", id=env.task)
+        configuration = json.loads(task["configuration_json"])
+        configuration["recovery_strategy"] = {"limits": {"max_attempts": 1}}
+        records.change(
+            "tasks", {"id": env.task}, {"configuration_json": canonical_json(configuration)}
+        )
+    env.token = env.queue.claim(now=5, ttl=300)
+    assert env.scans.begin(env.token, env.fixture["commit"], {"image": "old"}, now=3) == first
+    assert env.scans.batch(env.token, first, now=3)["state"] == "incomplete"
+
+
+def test_changed_check_contract_creates_fresh_batch_and_preserves_old(scan_setup, monkeypatch):
+    env = scan_setup
+    first = env.scans.begin(env.token, env.fixture["commit"], {"image": "same"}, now=3)
+    changed = [{"id": "python:unittest", "argv": ["python", "-m", "unittest"], "basis": "test"}]
+    monkeypatch.setattr("repowatch.application.scans.checks_for", lambda *args: changed)
+    second = env.scans.begin(env.token, env.fixture["commit"], {"image": "same"}, now=3)
+    assert second != first
+    assert env.scans.batch(env.token, first, now=3)["state"] == "superseded"
+    assert json.loads(env.scans.batch(env.token, second, now=3)["checks_json"]) == changed
+    assert env.scans.begin(env.token, env.fixture["commit"], {"image": "same"}, now=3) == second
 
 
 @pytest.mark.parametrize("scenario", ["complete", "failed_rebuild", "late_drift", "truncated"])

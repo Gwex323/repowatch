@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { initialAmounts, initialize, labels, mutate, request, type Amounts, type Budget, type BusinessEvent, type Provider, type Reason, type Renewal, type State, type Task } from "./client";
 import "./styles.css";
 import { Repositories } from "./Repositories";
+import { PullRequestLifecycle } from "./PullRequestLifecycle";
 type Run = (action: () => Promise<unknown>, message?: string) => Promise<void>;
 const statusNames: Record<string, string> = { queued: "排队", running: "执行中", waiting: "等待", blocked: "阻塞", ended: "结束", cancelled: "取消", pending: "待批准", stale: "需刷新", approved: "已批准", rejected: "已拒绝", completed: "通过", failed: "失败", available: "可用", exhausted: "已耗尽", revoked: "已撤销", configuration_required: "待配置" };
 const textStatus = (value: string) => statusNames[value] ?? value;
+const requiresInput = (task: Task) => task.state === "waiting" && ["information", "approval", "review_scope", "pr_merge_conflict", "target_configuration", "pr_head_changed"].includes(task.wait_reason ?? "");
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 function Evidence({ value, title = "查看持久记录" }: {
     value: unknown;
@@ -325,6 +327,7 @@ function TaskDetail({ task, state, run, onUpdated }: {
 {["select", "request_triage", "cancel", "exclude", "reenable"].map(action => <button key={action} onClick={() => void operate(action)}>
 {({ select: "明确选择", request_triage: "重新分诊", cancel: "取消任务", exclude: "排除", reenable: "明确重新启用" })[action]}</button>)}</div>
 <Evidence value={task.input} title="当前输入与补充材料"/>
+<PullRequestLifecycle task={task} run={run} onUpdated={onUpdated}/>
 <h3>分诊与验收规范 · 修订 {task.acceptance_revision ?? 1}</h3>
 {task.issue_context && <article><h4>远端占用与 PR 关系核对</h4><Evidence value={task.issue_context.facts} title="当前 Issue、评论及 PR 证据"/>
 <p>填写下方补充信息作为判断依据；判断仅适用于当前远端事实，执行前会重新读取。</p>
@@ -475,7 +478,7 @@ export default function App() {
 </>}</div>
 </header>
 <nav aria-label="工作台导航">
-{[["tasks", "任务"], ["items", `待人工事项 ${state ? state.reasons.length + state.renewals.filter(item => ["pending", "stale"].includes(item.state)).length : ""}`], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"], ["repositories", "仓库"], ["events", "业务事件"]].map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
+{[["tasks", "任务"], ["items", `待人工事项 ${state ? state.reasons.length + state.renewals.filter(item => ["pending", "stale"].includes(item.state)).length + state.tasks.filter(requiresInput).length : ""}`], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"], ["repositories", "仓库"], ["events", "业务事件"]].map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
 {label}</button>)}</nav>
 <div aria-live="polite">
 {error && <p className="notice error" role="alert">

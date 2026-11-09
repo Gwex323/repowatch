@@ -13,8 +13,9 @@ class ReadPage:
 
 
 class GitHubReadError(RuntimeError):
-    def __init__(self, code):
+    def __init__(self, code, *, retry_after=0):
         self.code = code
+        self.retry_after = retry_after
         super().__init__("GitHub 读取未完成：" + code)
 
 

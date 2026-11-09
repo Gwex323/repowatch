@@ -6,6 +6,7 @@ from uuid import uuid4
 from repowatch.adapters.github import GitHubReadAdapter
 from repowatch.application.budgets import BudgetedExecutor, remember_operation, replay_operation
 from repowatch.application.github_reads import issue_input
+from repowatch.application.remote_observations import mark_sync_change, save_comments
 from repowatch.application.storage import ConflictError
 from repowatch.application.task_records import (
     bump_task,
@@ -44,6 +45,32 @@ def relation_fingerprint(kind, values):
             "head_ref": (item.get("head") or {}).get("ref"),
             "base_ref": (item.get("base") or {}).get("ref"),
             "base_sha": (item.get("base") or {}).get("sha"),
+            "reviews": [
+                {
+                    key: review.get(key)
+                    for key in ("id", "state", "commit_id", "body", "submitted_at")
+                }
+                for review in item.get("reviews", [])
+            ],
+            "review_comments": item["review_comments"]
+            if type(item.get("review_comments")) is int
+            else [
+                {
+                    key: comment.get(key)
+                    for key in (
+                        "id",
+                        "body",
+                        "commit_id",
+                        "original_commit_id",
+                        "updated_at",
+                        "in_reply_to_id",
+                        "path",
+                        "line",
+                        "original_line",
+                    )
+                }
+                for comment in item.get("review_comments", [])
+            ],
         }
         for item in values
     ]
@@ -60,6 +87,7 @@ class IssueContexts:
             task = dict(required(records, "tasks", id=run["task_id"]))
             repository = dict(required(records, "repositories", id=task["repository_id"]))
             inputs = json.loads(task["input_json"])
+            managed_binding = records.one("managed_pull_requests", task_id=task["id"])
         if task["issue_id"] is None:
             return None
         number = inputs.get("number")
@@ -74,7 +102,10 @@ class IssueContexts:
             "issue-context:" + uuid4().hex,
             BudgetAmounts(active_ms=180000),
             lambda: port.issue_context(
-                repository["github_owner"], repository["github_name"], number
+                repository["github_owner"],
+                repository["github_name"],
+                number,
+                **({"managed_pr_id": managed_binding["pr_id"]} if managed_binding else {}),
             ),
             lambda _: {},
             purpose="tool",
@@ -93,6 +124,34 @@ class IssueContexts:
                 now=services.clock(),
             )
             raise ConflictError("Issue 输入已变化，必须重新分诊")
+        if managed_binding:
+            from repowatch.application.pr_lifecycle import PullRequestLifecycle
+
+            managed_pulls = [
+                item
+                for item in facts["pull_requests"]
+                if str(item["id"]) == managed_binding["pr_id"]
+            ]
+            if len(managed_pulls) != 1:
+                raise PermissionError("受管 PR 当前状态未被唯一读取，不能继续发布")
+            pull = managed_pulls[0]
+            if "reviews" not in pull or "review_comments" not in pull:
+                raise PermissionError("受管 PR 缺少当前评审读取")
+            with services.store.write() as records:
+                execution_record(records, token, services.clock())
+                old_lifecycle = records.one("pr_lifecycle", task_id=task["id"])
+                old_snapshot = json.loads(old_lifecycle["snapshot_json"]) if old_lifecycle else {}
+                PullRequestLifecycle(services).observe(
+                    records,
+                    repository,
+                    task,
+                    pull,
+                    pull["reviews"],
+                    pull["review_comments"],
+                    old_snapshot.get("checks", []),
+                    old_snapshot.get("statuses", []),
+                    services.clock(),
+                )
         with services.store.read() as records:
             previous = records.find("issue_contexts", task_id=task["id"])
             latest = max(previous, key=lambda item: item["created_at"], default=None)
@@ -119,6 +178,17 @@ class IssueContexts:
             ]
 
         changed_relations = False
+        with services.store.write() as records:
+            observed_change = save_comments(
+                records,
+                repository["id"],
+                relation_fingerprint(
+                    "comments", external_comments(DEFAULT_REDACTOR.clean(facts["comments"]))
+                ),
+                services.clock(),
+            )
+            if observed_change and records.one("github_sync_state", repository_id=repository["id"]):
+                mark_sync_change(records, repository["id"], services.clock())
         if latest:
             prior_facts = json.loads(latest["facts_json"])
             for kind in ("comments", "pull_requests"):
@@ -130,6 +200,17 @@ class IssueContexts:
                 if content_digest(relation_fingerprint(kind, cleaned_values)) == content_digest(
                     relation_fingerprint(kind, prior_values)
                 ):
+                    continue
+                with services.store.read() as records:
+                    observed = records.one(
+                        "github_remote_objects",
+                        repository_id=repository["id"],
+                        kind=kind,
+                        object_id=task["issue_id"],
+                    )
+                if observed and json.loads(observed["payload_json"]).get(
+                    kind
+                ) == relation_fingerprint(kind, cleaned_values):
                     continue
                 services.tasks.observe(
                     task["id"],
@@ -146,6 +227,7 @@ class IssueContexts:
                 **cleaned,
                 "issue": issue_input(cleaned["issue"]),
                 "comments": external_comments(cleaned["comments"]),
+                "pull_requests": relation_fingerprint("pull_requests", cleaned["pull_requests"]),
             }
         )
         with services.store.read() as records:

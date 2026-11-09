@@ -32,6 +32,17 @@ def routes(services):
     def task(task_id: str):
         return services.console.task(task_id)
 
+    @router.post("/tasks/{task_id}/review-scope/decide")
+    def review_scope(task_id: str, body: Mutation):
+        return services.lifecycle.decide(
+            body.operation_id,
+            task_id,
+            expected_revision=body.revision(),
+            context_sha256=body.data["context_sha256"],
+            action=body.data["action"],
+            explanation=body.data["explanation"],
+        )
+
     @router.get("/events")
     def events(after: int = 0, limit: int = 100, task_id: str | None = None):
         return services.console.events.read(after=after, limit=limit, task_id=task_id)
@@ -68,6 +79,22 @@ def routes(services):
     @router.get("/repositories/{repository_id}/scans")
     def scans(repository_id: str):
         return services.scans.view(repository_id)
+
+    @router.post("/repositories/{repository_id}/sync")
+    def request_sync(repository_id: str, body: Mutation):
+        if body.data:
+            raise ValueError("同步请求不接受附加参数")
+        return services.synchronization.request(body.operation_id, repository_id)
+
+    @router.get("/repositories/{repository_id}/sync")
+    def sync_status(repository_id: str):
+        return services.synchronization.status(repository_id)
+
+    @router.post("/repositories/{repository_id}/sync/configure")
+    def sync_configure(repository_id: str, body: Mutation):
+        return services.synchronization.configure(
+            body.operation_id, repository_id, body.data, expected_revision=body.revision()
+        )
 
     @router.post("/scan-candidates/{candidate_id}/decide")
     def candidate_decide(candidate_id: str, body: Mutation):

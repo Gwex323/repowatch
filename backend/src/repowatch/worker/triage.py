@@ -10,6 +10,7 @@ from repowatch.application.acceptance import acceptance_view
 from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.candidate_issues import CandidateIssues
 from repowatch.application.issue_context import IssueContexts
+from repowatch.application.pr_lifecycle import PullRequestLifecycle
 from repowatch.application.task_records import execution_record, required
 from repowatch.domain.budget import BudgetAmounts
 from repowatch.domain.task_records import TriageDecision, canonical_json, content_digest
@@ -23,9 +24,43 @@ from repowatch.runtime.engine import StagePlan, ToolBinding
 from repowatch.security import DEFAULT_REDACTOR
 
 
+def triage_evidence(snapshot, remote_context, lifecycle):
+    """Project current facts once; retain bodies, patches, identities and versions."""
+
+    def compact(value):
+        if isinstance(value, list):
+            return [compact(item) for item in value]
+        if isinstance(value, dict):
+            return {
+                key: compact(item)
+                for key, item in value.items()
+                if key not in {"url", "_links", "snapshot_json"} and not key.endswith("_url")
+            }
+        return value
+
+    signals = []
+    for signal in snapshot["signals"]:
+        payload = dict(signal["payload"])
+        if remote_context and "pull_requests" in payload:
+            payload.pop("pull_requests")
+            payload["pull_requests_evidence"] = "remote_context.facts.pull_requests"
+        signals.append({**signal, "payload": payload})
+    return compact(
+        {
+            "input": snapshot["input"],
+            "acceptance": snapshot["acceptance"],
+            "admission_revision": snapshot["admission_revision"],
+            "remote_context": remote_context,
+            "pr_lifecycle": lifecycle,
+            "signals": signals,
+        }
+    )
+
+
 class TriageCoordinator:
     def __init__(self, services, runtime):
         self.services, self.runtime = services, runtime
+        self.lifecycle = PullRequestLifecycle(services)
 
     def run(self, token):
         services = self.services
@@ -73,6 +108,21 @@ class TriageCoordinator:
             with services.store.read() as records:
                 current_task = required(records, "tasks", id=task["id"])
                 acceptance = acceptance_view(records, current_task)
+            if self.lifecycle.view(task["id"]) is not None:
+                scope = self.lifecycle.classify(token, analysis, acceptance, artifact_id)
+                with services.store.read() as records:
+                    revised = required(records, "tasks", id=task["id"])
+                if revised["acceptance_revision"] != snapshot["acceptance_revision"]:
+                    services.queue.complete(token, now=services.clock(), state="queued")
+                    return {"state": "queued", "reason": "review_acceptance_carried"}
+                if scope in {"pending", "handled"}:
+                    reason = "review_scope" if scope == "pending" else "pr_review"
+                    services.queue.complete(
+                        token, now=services.clock(), state="waiting", wait_reason=reason
+                    )
+                    return {"state": "waiting", "reason": reason}
+                with services.store.read() as records:
+                    acceptance = acceptance_view(records, required(records, "tasks", id=task["id"]))
             decision = classify_analysis(
                 analysis, acceptance=acceptance, remote_context=remote_context
             )
@@ -136,15 +186,12 @@ class TriageCoordinator:
         def read_evidence() -> str:
             """读取当前 Issue 输入、已绑定验收规范和准入策略修订。"""
             reads.append(True)
+            with services.store.read() as records:
+                run = execution_record(records, token, services.clock())
+                task_id = run["task_id"]
+            lifecycle = self.lifecycle.view(task_id)
             return canonical_json(
-                DEFAULT_REDACTOR.clean(
-                    {
-                        "input": snapshot["input"],
-                        "acceptance": snapshot["acceptance"],
-                        "admission_revision": snapshot["admission_revision"],
-                        "remote_context": remote_context,
-                    }
-                )
+                DEFAULT_REDACTOR.clean(triage_evidence(snapshot, remote_context, lifecycle))
             )
 
         @tool
@@ -185,6 +232,10 @@ class TriageCoordinator:
             "Bug 须给出具体定位与复现路径；功能、重构和多目标须提出方案与验收条件。"
             "若输入包含当前有效验收，必须使用其 objective、criteria 和 plan 原文，"
             "不能自行改写已批准范围。"
+            "若存在 pr_lifecycle，须读取评审对应提交、当前 head、文件差异和 CI 来源；"
+            "填写 review_scope（in_scope、expanded、uncertain 或 handled）与 review_evidence。"
+            "明确原范围内意见保持当前 objective、criteria、plan；扩展或歧义必须等待人工确认。"
+            "旧提交意见不能仅凭 head 不同宣称已处理，须结合修改及意见给出依据。"
             "信息不足、标签与正文矛盾或敏感披露必须如实列出，不能声称已实际复现。"
             "纯重构方案须包含 structural_goal 与 behavior_preservation。"
             "有 remote_context 时必须逐条核对维护者评论占用并填写 ownership 和依据，"

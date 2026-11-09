@@ -40,6 +40,15 @@ class Console:
                     public_record(row) for row in records.find("diagnostic_authorizations")
                 ],
             }
+            for repository in result["repositories"]:
+                sync = records.one("github_sync_state", repository_id=repository["id"])
+                repository["synchronization"] = public_record(sync) if sync else None
+                if sync:
+                    repository["synchronization"]["running"] = bool(
+                        records.find(
+                            "github_sync_runs", repository_id=repository["id"], state="running"
+                        )
+                    )
         for task in tasks:
             task["budget"] = self.budgets.view(task["budget_owner_task_id"])
         result["providers"], result["roles"] = self.providers.list(), self.roles.list()
@@ -73,6 +82,13 @@ class Console:
                 public_record(row)
                 for row in records.find("distillation_intents", task_id=identifier)
             ]
+            lifecycle = records.one("pr_lifecycle", task_id=identifier)
+            task["pr_lifecycle"] = public_record(lifecycle) if lifecycle else None
+            if lifecycle:
+                task["pr_lifecycle"]["scope_decisions"] = [
+                    public_record(row)
+                    for row in records.find("review_scope_decisions", task_id=identifier)
+                ]
             task["runs"] = [public_record(row) for row in records.find("runs", task_id=identifier)]
             task["artifacts"] = [
                 {

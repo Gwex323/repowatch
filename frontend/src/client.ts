@@ -17,7 +17,7 @@ export type Task = {
     wait_reason: string | null;
     outcome: string | null;
     acceptance_revision?: number;
-    acceptance?: { revision: number; kind: "bug" | "feature" | "refactor"; content: Record<string, unknown>; approved_revision: number | null; approved_by: string | null; current: boolean; approved: boolean } | null;
+    acceptance?: { revision: number; kind: "bug" | "feature" | "refactor"; content: Record<string, unknown>; approved_revision: number | null; approved_by: string | null; current: boolean; approved: boolean; approval_source_revision?: number | null } | null;
     triage_decisions?: Array<{ id: string; result: string; reason_code: string; evidence: Record<string, unknown>; input_revision: number; admission_revision: number }>;
     issue_context?: { digest: string; facts: { issue: Record<string, unknown>; comments: unknown[]; pull_requests: Array<{ id: number; number: number; title: string; html_url: string; state: string }> } } | null;
     publication_intents?: Array<{id: string; kind: string; state: string; request: Record<string, unknown>; result: Record<string, unknown> | null}>;
@@ -25,6 +25,14 @@ export type Task = {
     relation_decisions?: unknown[];
     candidate_issue_decisions?: unknown[];
     distillation_intents?: unknown[];
+    pr_lifecycle?: {
+        number: number; delivery_state: string; issue_state: string; ci_state: string;
+        head_sha: string; base_sha: string; merge_sha: string | null; snapshot_sha256: string;
+        observed_at: number;
+        feedback_sha256: string;
+        snapshot: Record<string, unknown>;
+        scope_decisions: Array<{context_sha256: string; decision: string; analysis: Record<string, unknown>}>;
+    } | null;
     artifacts?: Array<{id: string; sha256: string; available: number; context: Record<string, unknown>}>;
     budget_owner_task_id: string;
     input: Record<string, unknown>;
@@ -94,6 +102,15 @@ export type State = {
         github_owner?: string;
         github_name?: string;
         target_branch?: string;
+        target_sha?: string;
+        synchronization?: {
+            revision: number; active_seconds: number; idle_seconds: number; lookback_seconds: number;
+            overlap_seconds: number; full_refresh_seconds: number; running: boolean;
+            last_success_at: number | null; last_changed_at: number | null; next_due_at: number;
+            retry_at: number; error_code: string | null; last_result: string | null;
+            requested_sequence: number; completed_sequence: number;
+            ci_policy: {configured: boolean; required: unknown[]};
+        } | null;
         contribution_path?: string;
         credential_reference?: string;
         import_epoch?: number;
@@ -156,7 +173,7 @@ export function initialize(): Promise<void> {
     })();
     return initialization;
 }
-export function mutate<T>(path: string, data: Record<string, unknown>, expectedRevision?: number, operationId = crypto.randomUUID()): Promise<T> {
+export function mutate<T>(path: string, data: Record<string, unknown>, expectedRevision?: number, operationId: string = crypto.randomUUID()): Promise<T> {
     return request<T>(path, { method: "POST", headers: { "Content-Type": "application/json", "X-RepoWatch-Session": csrf }, body: JSON.stringify({ operation_id: operationId, expected_revision: expectedRevision, data }) });
 }
 export const initialAmounts: Amounts = { active_ms: 600000, model_calls: 30, tokens: 100000, repair_rounds: 5, recovery_rounds: 5 };

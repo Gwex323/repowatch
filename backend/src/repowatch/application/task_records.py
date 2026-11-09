@@ -3,6 +3,7 @@
 import json
 import time
 from collections.abc import Mapping
+from contextlib import nullcontext
 from typing import Any
 from uuid import uuid4
 
@@ -126,6 +127,7 @@ def capture_run(records, task, run_id, generation, now, *, parent_run_id=None, s
     owner = required(records, "tasks", id=task["budget_owner_task_id"])
     signals = records.find("pending_signals", task_id=task["id"], consumed_by_run_id=None)
     configuration = dict(snapshot or {})
+    lifecycle = records.one("pr_lifecycle", task_id=task["id"])
     configuration.update(
         {
             "input": json.loads(task["input_json"]),
@@ -160,6 +162,7 @@ def capture_run(records, task, run_id, generation, now, *, parent_run_id=None, s
                 }
                 for item in signals
             ],
+            "pr_context_sha256": lifecycle["feedback_sha256"] if lifecycle else None,
         }
     )
     records.add(
@@ -295,6 +298,7 @@ class TaskRecords:
         issue_id: str | None = None,
         mode: str = "triage",
         now: float,
+        records: RecordPort | None = None,
     ) -> str:
         require_time(now)
         if not source_key.strip() or (issue_id is not None and not issue_id.strip()):
@@ -311,7 +315,7 @@ class TaskRecords:
             "diagnose",
         }:
             raise ValueError("未知任务模式")
-        with self.store.write() as records:
+        with nullcontext(records) if records is not None else self.store.write() as records:
             required(records, "repositories", id=repository_id)
             source = records.one("task_sources", repository_id=repository_id, source_key=source_key)
             existing = records.one("tasks", id=source["task_id"]) if source else None
@@ -350,12 +354,13 @@ class TaskRecords:
         *,
         kind: str = "input",
         now: float | None = None,
+        records: RecordPort | None = None,
     ) -> str:
         now = time.time() if now is None else now
         if not source_key or not revision or kind not in {"input", "feedback"}:
             raise ValueError("信号必须有稳定来源、修订和类型")
         encoded = canonical_json(payload)
-        with self.store.write() as records:
+        with nullcontext(records) if records is not None else self.store.write() as records:
             task = required(records, "tasks", id=task_id)
             existing = records.one(
                 "pending_signals", task_id=task_id, source_key=source_key, revision=revision
@@ -394,6 +399,8 @@ class TaskRecords:
                 "approval",
                 "external_pr",
                 "admission",
+                "pr_review",
+                "review_scope",
             }
             if reconsider and admitted and not task["user_excluded"]:
                 changes.update(state="queued", mode="triage", wait_reason=None, outcome=None)
@@ -411,6 +418,28 @@ class TaskRecords:
                         "admission_revision": repository["admission_revision"],
                     }
                 )
+            if (
+                kind == "input"
+                and payload.get("state") == "closed"
+                and records.one("managed_pull_requests", task_id=task_id)
+            ):
+                changes.update(
+                    state="waiting", wait_reason="pr_terminal_verification", mode=task["mode"]
+                )
+                if task["state"] == "running":
+                    changes.pop("state")
+                    changes["stop_requested"] = 1
+                    changes["pending_transition_json"] = canonical_json(
+                        {
+                            "state": "waiting",
+                            "wait_reason": "pr_terminal_verification",
+                            "outcome": None,
+                            "mode": task["mode"],
+                            "input_revision": changes["input_revision"],
+                            "feedback_revision": changes["feedback_revision"],
+                            "admission_revision": repository["admission_revision"],
+                        }
+                    )
             bump_task(records, task, **changes)
             updated = required(records, "tasks", id=task_id)
             records.add(
@@ -433,8 +462,8 @@ class TaskRecords:
             refresh_ready(records, now)
             return identifier
 
-    def acknowledge(self, token: ExecutionToken, *, now: float) -> None:
-        with self.store.write() as records:
+    def acknowledge(self, token: ExecutionToken, *, now: float, records=None) -> None:
+        with nullcontext(records) if records is not None else self.store.write() as records:
             run = execution_record(records, token, now)
             for item in records.find("run_signals", run_id=token.run_id):
                 signal = required(records, "pending_signals", id=item["signal_id"])
@@ -515,7 +544,11 @@ class TaskRecords:
                     "feedback_revision": run["feedback_revision"],
                     "admission_revision": run["admission_revision"],
                     "acceptance_revision": acceptance_revision,
-                    "mode": "implement"
+                    "mode": (
+                        "amend"
+                        if records.one("managed_pull_requests", task_id=task["id"])
+                        else "implement"
+                    )
                     if decision.result == TriageResult.AUTO_REPAIR
                     else "triage",
                 }
@@ -530,6 +563,7 @@ class TaskRecords:
             business_event(
                 records, "triage_saved", task["id"], triage_id=identifier, current=current
             )
+            self.acknowledge(token, now=now, records=records)
             return identifier
 
     def operate(
