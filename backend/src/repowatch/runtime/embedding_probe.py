@@ -198,7 +198,9 @@ def vec_probe(dim: int, doc_vectors, query_vector) -> dict:
     return {"top_ids": [DOCS[row[0] - 1][0] for row in rows]}
 
 
-def evaluate_model(name: str, cache_dir: Path, fastembed_path: Path | None) -> dict:
+def evaluate_model(
+    name: str, cache_dir: Path, fastembed_path: Path | None, model_path: Path | None = None
+) -> dict:
     if fastembed_path is not None:
         sys.path.insert(0, str(fastembed_path))
     try:
@@ -220,6 +222,8 @@ def evaluate_model(name: str, cache_dir: Path, fastembed_path: Path | None) -> d
             model_name=name,
             cache_dir=str(cache_dir),
             threads=4,
+            local_files_only=True,
+            **({"specific_model_path": str(model_path)} if model_path else {}),
         )
         load_seconds = time.perf_counter() - started
         rss_loaded = process.memory_info().rss
@@ -243,6 +247,7 @@ def evaluate_model(name: str, cache_dir: Path, fastembed_path: Path | None) -> d
             cache_dir=str(cache_dir),
             threads=4,
             local_files_only=True,
+            **({"specific_model_path": str(model_path)} if model_path else {}),
         )
         offline_seconds = time.perf_counter() - offline_started
     except Exception:
@@ -268,6 +273,10 @@ def evaluate_model(name: str, cache_dir: Path, fastembed_path: Path | None) -> d
         "declared_languages": list(CANDIDATE_LANGUAGES.get(name, ())),
         "rankings": {
             query: ranking[:3] for (query, _, _), ranking in zip(QUERIES, rankings, strict=True)
+        },
+        "expected_ranks": {
+            query: ranking.index(expected) + 1
+            for (query, expected, _), ranking in zip(QUERIES, rankings, strict=True)
         },
         "sqlite_vec_top3": vec_probe(len(doc_vectors[0]), doc_vectors, query_vectors[0]),
     }
@@ -295,7 +304,7 @@ def select_model(results: list[dict]) -> dict:
         eligible.append(item)
 
     chinese = [item for item in eligible if "zh" in item["declared_languages"]]
-    pool = chinese or eligible
+    pool = chinese
     pool.sort(
         key=lambda item: (
             item["metrics"]["overall"]["mrr"],

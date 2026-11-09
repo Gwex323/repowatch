@@ -1,13 +1,13 @@
 # 当前状态与接续
 
-核验日期：2026-11-09。P4 持续同步、PR／CI、评审及原 PR 返修的阶段验收已完成，P4 为 13／13，整体任务为 69／89。当前分支 `feature/p4-scheduled-sync` 的改动尚未提交或推送。受控真实 GitHub 生命周期使用确定性离线模型、真实 Docker／Git／GitHub：PR #16 返修后合并，PR #18 解决冲突并返修后关闭未合并；两种终态均由产品同步入库。P5—P6、真实付费模型效果和最终用户验收仍未完成。
+核验日期：2026-11-09。P4 为 13／13；P5 的 10.1—10.9 实现及受控阶段验收已完成，为 9／9，整体任务 78／89。分支 `feature/p5-memory-retrieval` 保留前置嵌入复评及 P5 改动，尚未提交或推送。P5 的正式 SDK、SQLite／FTS／sqlite-vec、本地 CPU 资产、Docker 失败链和浏览器有实测；供应商 HTTP 使用确定性夹具，未证明真实模型提效。P6、真实付费模型效果和最终用户验收仍未完成。全量基线与最后补丁专项的区别见下方，不宣称最后补丁后重新全量通过。
 
 ## 当前目标与进展
 
 - P0 与全部 P1 任务已完成。P1 提供正式串行执行位、累计预算和有限续期、实际命令监督、显式恢复、角色能力／有限重试、回环会话／API／UI、持久无进展检测及 GitHub 只读来源接口。E1 费用仍待按账单核实。P0 的对象交接、恢复／调度及编码选型结论沿用[门槛汇总](../development/p0-summary.md)和[编码资产评测](../development/embedding-evaluation.md)，不替代后续真实仓库验收。
 - 需求与最终架构已有基线、实施契约和 ADR，来源路由见 [项目索引](../../PROJECT_INDEX.md)。本次不重启需求访谈。
-- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 69／89；P3 与 P4 已通过阶段验收，本变更继续保留至最终归档。
-- 开发安装见[开发入口](../development/README.md)，API／Worker 与人工入口见[本地控制](../development/local-control.md#p4-持续同步与-pr-评审返修)，P1 引擎验收见[运行验收](../development/runtime.md#复跑与实验映射)。当前代码要求 schema `0024_pr_lifecycle`，本轮迁移临时测试库及原有两套受控 P3 验收库，迁移前已备份。P4 已向真实 GitHub 写入两条请求修改评审；未调用付费模型、迁移用户数据库或执行最终产品用户验收。
+- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 78／89；P3—P5 阶段验收通过，本变更继续保留至 P6 最终验收和归档。
+- 开发安装见[开发入口](../development/README.md)，P5 入口与边界见[记忆生命周期与检索](../development/memory.md)，P1 引擎验收见[运行验收](../development/runtime.md#复跑与实验映射)。当前代码要求 schema `0026_memory_lifecycle`，本轮只迁移临时测试库；原有两套受控 GitHub 验收库未升级，用户数据库未迁移。P5 未调用付费模型、写入 GitHub 或执行最终产品用户验收。
 - 定时、启动补偿及人工“检查更新”已接入目标分支 SHA 读取和版本补扫；重复目标观测或回到已排队版本时复用相应扫描、保留原预算和导入代次。PR／CI／评审按来源与版本保存，范围变化通过界面确认，返修保留外部 head 并对当前 base 重验；当前验收证据见下方。
 - 最新决定：本地扫描缺陷先完整查重再创建或关联 GitHub Issue；外部开放 PR 同问题等待、无关继续、关系不明请求用户判断。P3 已接入这些入口及人工决定持久回读，远端 PR／评论变化会递增反馈并重新分诊。已合并 PR 须验证提交进入当前目标历史并运行真实探针，已解决记为 `externally_resolved`，目标仍失败则以当前版本继续验证；不会凭 `merged` 自证解决。
 - 最新循环与预算决定：按真实产物检测无进展及振荡；复杂任务有进展但预计额度不足时，耗尽前正常等待用户批准有限追加，账本与检测历史不清零；已耗尽／无进展等仍全局阻塞且不因加额自动恢复。初值与恢复条件见[实施契约 §3](../implementation-contracts.md#无进展检测)。预算、检测、UI 和正式图集成已完成受控验收；真实扫描／修复事实生产及生产样本阈值校准由后续适配补齐。
@@ -21,19 +21,24 @@
 
 
 
-- 用户已授权 P4 开发；当前分支 `feature/p4-scheduled-sync`，保留原有未跟踪临时目录。P3 的 `Gwex323/repowatch-p3-sandbox`（ID `1447899115`）及第二个账户 Fork `gwx541/repowatch-p3-sandbox`（ID `1447913051`）已完成专用验收。2026-11-06 RepoWatch 产品真实完成直接路径 Issue #15→PR #16 与 Fork 路径 Issue #17→PR #18，身份、base/head ref 与 SHA 匹配，两条发布意图均为 `confirmed`；模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。此前 Issue #1／#3、PR #2／#4 为人工 API 驱动的仓库准备对象。沙箱内外认证可见性不同，不代表凭据失效。
+- 用户已授权 P4 开发、嵌入复评／锁定及在新分支实施 P5；当前分支 `feature/p5-memory-retrieval`，保留原有未跟踪临时目录。P3 的 `Gwex323/repowatch-p3-sandbox`（ID `1447899115`）及第二个账户 Fork `gwx541/repowatch-p3-sandbox`（ID `1447913051`）已完成专用验收。2026-11-06 RepoWatch 产品真实完成直接路径 Issue #15→PR #16 与 Fork 路径 Issue #17→PR #18，身份、base/head ref 与 SHA 匹配，两条发布意图均为 `confirmed`；模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。此前 Issue #1／#3、PR #2／#4 为人工 API 驱动的仓库准备对象。沙箱内外认证可见性不同，不代表凭据失效。
 - Docker Desktop 此前停止，首次重跑为 `466 passed, 4 failed, 1 skipped`；四项均因引擎不可用。启动已安装 Docker 后容器专项 `15 passed`，后续全套 `491 passed, 1 skipped`。沙箱内 TestClient 挂起在沙箱外基础测试 `2 passed` 后解除；这些环境失败不再作为代码阻塞。最终证据防伪／原 PR 更新等后续修改的最新报告见下方，不沿用旧全量宣称最终冻结通过。
-- P0 六项关键切片均已通过，P1 已放行；但费用账单、真实 GitHub 写入、完整 E11 安装／启停／交付链路、LFS 实体与子模块对象仍未完成，含这些内容的仓库保持阻塞。1.9 主选 `jinaai/jina-embeddings-v2-base-zh`（Apache-2.0、768 维、0.64GB、离线加载通过），代码备选为 `jinaai/jina-embeddings-v2-base-code`；评测仅覆盖 22 条语料／12 条查询，生产召回与运行时锁仍需在 P5 前复核。编码运行时未加入默认依赖，模型资产未固定摘要。
+- P0 六项关键切片均已通过，P1 已放行；费用账单、完整 E11 安装／启停／交付链路、LFS 实体与子模块对象仍未完成，含这些内容的仓库保持阻塞。2026-11-09 已用 8 条真实远端 Issue／PR 和 8 条查询复评：三候选中文 recall@3 均为 0.50、代码均为 1.00，未过原门槛，当前无默认语义模型，保留关键词降级路线。可选编码依赖组及传递依赖、模型 revision 和逐文件摘要已锁定并离线验证；生产泛化仍待核实。权威结果及复跑见[编码资产复评](../development/embedding-evaluation.md#真实-issuepr-复评与资产锁定)。
 - P1 已无需要人工介入的开发阻塞。普通仓库执行需 P2 的身份／工作区／Runner／扫描接入；本轮只读 GitHub 通过 HTTP 夹具验证，未访问真实仓库。P1 通过不代表真实修复发布、完整产品部署或最终用户验收通过。
 - 此前 3.3 的凭据预检阻塞已解除：用户完成真实复测，新报告配置摘要匹配，8／8 通过，23 次请求全部 HTTP 200；费用仍待核实。其后 P1 集成已完成，未重复执行付费复测，证据见[P1 供应商](../development/providers.md#当前验证与真实-e1-复测)。
 
 ## 下一步
 
-1. P4 阶段已完成；如继续后续阶段，按任务依赖进入 P5。真实模型、安装交付及最终用户验收仍按各自阶段验证。
+1. P5 受控阶段已完成；下一阶段为 P6 本地产品化和最终集成验收，按后续授权推进。语义默认模型仍未过真实语料选型门槛，保持关键词降级；CPU 向量适配、版本化索引及受控 E10／E12／E16 已验收，不能把这些结果说成生产召回或真实模型收益已通过。
 2. 仅使用 `Gwex323/repowatch-p3-sandbox` 与 `gwx541/repowatch-p3-sandbox` 现有 Issue #15／#17、PR #16／#18 作为本次受控远端输入；保留其他对象，不扩展写入范围。重复的中间测试 Issue #5—#12 已关闭。
 3. 完整安装启停、备份、产品级故障集及真实付费修复发布仍按 P6 和对应阶段验收，不提前标记最终产品完成。
 
 ## 证据入口与时效
+
+- 2026-11-09 P5 五项评审修复：来源排除／取消约束维护任务全流程，重新启用不恢复撤销预算；失败经验的迟到反馈进入复核且保留失败类型；附加失败记忆冲突不改变原修复失败路径；派生索引故障留待重建，不阻塞已提交事实；状态／检索以只读连接访问索引，不建表。真实业务存储故障仍停止执行。最终定向 `17 passed in 45.59s`（`.cache/p5-review.xml`），关联记忆／SDK／API／Worker／调度回归 `110 passed in 145.20s`（`.cache/p5-review-regression.xml`），真实 Docker 原无进展路径与记忆冲突对照 `2 passed in 115.14s`（`.cache/p5-review-docker.xml`）；其后 Docker-enabled 全后端 `648 passed, 3 skipped in 1226.13s`（`.cache/p5-review-full.xml`）。Ruff 检查／格式、OpenSpec strict 与差异检查通过。首次关联回归因沙箱临时目录不可写而失败，已在允许临时测试数据库的环境重跑通过。浏览器、E12 或真实模型效果本轮未重跑，未提交／推送。
+- 2026-11-09 P5 验收：全后端 Docker-enabled 基线 `619 passed, 1 skipped in 1219.01s`（`.cache/p5-full.xml`），唯一跳过仍为独立开关的 Git 对象交接实验。基线后的失败事实／编码版本／候选过滤补丁经 `68 passed in 231.70s`（`.cache/p5-final-focused.xml`，含禁止 socket 的真实本地模型离线加载和 E12），真实 Docker 失败尝试入库／无进展专项为 `1 passed`（`.cache/p5-failure-memory.xml`）。最终子任务摘要依赖继承、父级检查点清理及未发送预留释放补丁另经 `25 passed in 53.76s`（`.cache/p5-context-final.xml`）；其后未再次全后端，不能把基线当作最后补丁后全量。
+- P5 Edge 无头最终 10 项通过，报告 `.cache/p5-browser/1794213994623/report.json`；覆盖查看、检索、共享、纠错及旧检索展示清除、启停用、删除持久化、人工记录、索引及审计留存，暂停期间无模型。前端 TypeScript／Vite、Ruff、OpenSpec strict、wheel／锁定清单分发及隔离导入通过；本次直接关联 7 份文档的 178 个本地链接目标存在，未全面重审旧锚点或外链。测试全部使用临时数据，未升级原验收库或用户数据库，未调用付费模型／写入 GitHub。
+- P5 E12 为 30 组成对／60 个运行（15 同仓、15 跨仓），[报告](../../experiments/results/e12-memory.json) 保存数据集摘要、逐次通过率／耗时／调用与夹具 token。有无记忆均 30／30 通过、各 60 次调用，记忆增加上下文消耗，未证明 20% 改善；模型及来源是单一算术缺陷族的受控夹具，真实模型及生产泛化仍待核实。
 
 - 2026-11-09 提交前评审修复：`active_reviews` 不再让同作者后续 `COMMENTED`／`PENDING` 覆盖 `CHANGES_REQUESTED`；仍按时间／ID 取最新有效评审决定，后续 `APPROVED`／`DISMISSED` 清除请求修改状态。新增顺序／逆序、批准／撤销及真实同步入库回归；原代码的两条 COMMENTED 用例失败，修复后生命周期／上下文／发布套件 `60 passed in 59.40s`，相关 Ruff 检查／格式和 OpenSpec strict 通过。代码尚未提交或推送。
 - 2026-11-09 随后 Docker-enabled 全后端复跑：`595 passed, 1 skipped in 1061.67s`，命令 `REPOWATCH_DOCKER_TESTS=1 python -m pytest tests -q --tb=short`，于沙箱外运行以访问 Docker Desktop。该报告包含上述评审修复；唯一跳过项按测试自身的独立开关保留。未复跑浏览器或真实 GitHub 生命周期。

@@ -9,6 +9,8 @@ from test_roles import bind, diagnose
 from test_roles import kernel as kernel
 
 from repowatch.adapters.providers import ProviderAdapter
+from repowatch.application.memory import RepositoryMemory
+from repowatch.application.storage import ConflictError
 from repowatch.application.task_records import TaskRecords
 from repowatch.domain.budget import BudgetAmounts, BudgetDecision, BudgetDenied, RenewalPlan
 from repowatch.domain.task_records import canonical_json
@@ -27,6 +29,7 @@ from repowatch.worker.repairs import RepairCoordinator
         ("none", "feature"),
         ("none", "refactor"),
         ("stuck", "bug"),
+        ("stuck_memory_conflict", "bug"),
         ("sdk", "bug"),
         ("supplement", "bug"),
         ("review_retry", "bug"),
@@ -128,7 +131,7 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
                 if external == "renew" and sum(mode == "implement" for mode, _ in calls) == 2:
                     raise BudgetDenied(BudgetDecision("renewal_required"))
                 bindings["read_source"].invoke({"path": "calc.py"})
-                if external != "stuck":
+                if external not in {"stuck", "stuck_memory_conflict"}:
                     bindings["write_source"].invoke(
                         {
                             "path": "calc.py",
@@ -168,6 +171,12 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
             return result
 
     coordinator = RepairCoordinator(services, Runtime())
+    if external == "stuck_memory_conflict":
+
+        def reject_memory(*args, **kwargs):
+            raise ConflictError("controlled memory constraint failure")
+
+        monkeypatch.setattr(RepositoryMemory, "record_attempt", reject_memory)
     if external == "sdk":
 
         def wire(request):
@@ -590,7 +599,7 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
                 },
             )
     try:
-        if external == "stuck":
+        if external in {"stuck", "stuck_memory_conflict"}:
             with pytest.raises(PermissionError, match="无进展"):
                 coordinator.run(token)
             with services.store.read() as records:
@@ -598,6 +607,16 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
                 assert records.one("block_reasons", task_id=task, code="no_progress")
                 assert not records.find("publication_intents", task_id=task)
                 assert len(records.find("progress_attempts", task_id=task)) == 4
+                memories = records.find("repository_memories", repository_id=repo)
+                if external == "stuck":
+                    assert memories and all(item["state"] == "failure" for item in memories)
+                    assert all(json.loads(item["source_json"])["artifacts"] for item in memories)
+                else:
+                    assert not memories
+                    assert any(
+                        row["kind"] == "failure_memory_skipped"
+                        for row in records.find("business_events", task_id=task)
+                    )
             return
         if external == "renew":
             with pytest.raises(BudgetDenied):

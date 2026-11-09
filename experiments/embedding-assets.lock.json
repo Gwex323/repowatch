@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "model": "BAAI/bge-small-zh-v1.5",
+      "source": "Qdrant/bge-small-zh-v1.5",
+      "revision": "46fbe35fd4374a00fee7de77dfddaeb6dd6a2c59",
+      "files": {
+        "config.json": "9088751d39abbf86ec3d19ffca92ad62ad19075f7e59712e6c71217fa125d1d3",
+        "model_optimized.onnx": "1294ea4b6331115a353d81f96b85e8c8d7fdcc284453d5b2fab5b016230aad38",
+        "special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+        "tokenizer.json": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26",
+        "tokenizer_config.json": "e6f3b96db926a37d4039995fbf5ad17de158dfb8f6343d607e4dbaad18d75f5a"
+      }
+    },
+    {
+      "model": "jinaai/jina-embeddings-v2-base-zh",
+      "source": "jinaai/jina-embeddings-v2-base-zh",
+      "revision": "c1ff9086a89a1123d7b5eff58055a665db4fb4b9",
+      "files": {
+        "config.json": "85a9da5b54ecc2922656a8db6b9628c9123afe0a880062be891e0e4db60d10ff",
+        "onnx/model.onnx": "4b0e9fa6e5c77cff56e0c9c673ba1aad61e793e592fdd4b05690b68826b7d3a2",
+        "special_tokens_map.json": "06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f",
+        "tokenizer.json": "0046da43cc8c424b317f56b092b0512aaaa65c4f925d2f16af9d9eeb4d0ef902",
+        "tokenizer_config.json": "d291c6652d96d56ffdbcf1ea19d9bae5ed79003f7648c627e725a619227ce8fa"
+      }
+    },
+    {
+      "model": "jinaai/jina-embeddings-v2-base-code",
+      "source": "jinaai/jina-embeddings-v2-base-code",
+      "revision": "516f4baf13dec4ddddda8631e019b5737c8bc250",
+      "files": {
+        "config.json": "e426aa684c7f9a95c5f020aa855faf93a24f065f5fad0c9e17b124670cabdea6",
+        "onnx/model.onnx": "63363fc178428b74620c6f3780cbc7191883fa5c7f84c0945c45eb5c4256733b",
+        "special_tokens_map.json": "06e405a36dfe4b9604f484f6a1e619af1a7f7d09e34a8555eb0b77b66318067f",
+        "tokenizer.json": "b01c78a902aa4facb2f47f95449f48e2f7bbfea5d2472ee2f6ce92323c6f86e5",
+        "tokenizer_config.json": "f477aeb15ff9f78d3c1ddf2361d2b0b8b20cf55220f839f29a37f3a18efddd89"
+      }
+    }
+  ]
+}

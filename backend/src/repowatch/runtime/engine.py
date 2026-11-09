@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from deepagents import create_deep_agent
 from deepagents.backends import StateBackend
@@ -21,6 +21,7 @@ from repowatch.adapters.providers import ModelLimits, ProviderRequestError
 from repowatch.adapters.storage.checkpoints import checkpoint_store
 from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.delegation import Delegation
+from repowatch.application.memory_context import MemoryContext, MemoryContextChanged
 from repowatch.application.progress import ProgressService
 from repowatch.application.provider_calls import ModelCalls, RetryPolicy
 from repowatch.application.runtime_stages import RuntimeStages
@@ -138,12 +139,39 @@ class FormalRuntime:
             raise PermissionError("正式引擎已有执行者")
         try:
             with checkpoint_store(self.services.settings) as saver:
-                return self._run(token, plan, saver, SerialGate(), system_prompt=system_prompt)
+                for attempt in range(3):
+                    try:
+                        return self._run(
+                            token,
+                            replace(plan, key=plan.key + f":memory-reset:{attempt}")
+                            if attempt
+                            else plan,
+                            saver,
+                            SerialGate(),
+                            system_prompt=system_prompt,
+                        )
+                    except MemoryContextChanged:
+                        self._cancel_unstarted(token)
+                        if attempt == 2:
+                            raise PermissionError(
+                                "记忆连续变化，请等待管理操作稳定后重试"
+                            ) from None
         finally:
             self.lock.release()
 
     def _run(self, token, plan, saver, gate, *, system_prompt=None):
         services = self.services
+        context = MemoryContext(services)
+        injection = context.prepare(token, plan.key, plan.objective, plan.mode)
+        if injection:
+            plan = replace(plan, key=plan.key + ":memory:" + injection["id"])
+            system_prompt = (
+                (system_prompt or "") + "\n独立记忆参考块：\n" + canonical_json(injection["block"])
+            )
+        child_ids = {
+            stable_id("child-run", token.run_id, plan.key, child.key) for child in plan.children
+        }
+        context.guard_children(token, child_ids, plan.key)
         stage = self.stages.begin(token, plan.key, plan.objective_key, now=services.clock())
         with services.store.read() as records:
             run = execution_record(records, token, services.clock())
@@ -178,6 +206,12 @@ class FormalRuntime:
             roles=services.roles,
             safety=scope,
         )
+
+        def guard_memory(request_key=None):
+            context.guard(token, injection, request_key)
+            context.guard_children(token, child_ids, plan.key, request_key)
+
+        calls.memory_guard = guard_memory
         limits = ModelLimits(**snapshot["configuration"].get("model_request_limits", {}))
         retry = RetryPolicy(**snapshot["configuration"].get("retry_policy", {}))
         events = []
@@ -218,6 +252,7 @@ class FormalRuntime:
                         mode=plan.mode, allowed=tuple(item.tool.name for item in plan.tools)
                     ),
                     parent_run_id=run["parent_run_id"],
+                    memory_references=tuple(injection["dependencies"]) if injection else (),
                 )
                 children = []
                 for child in plan.children:
@@ -245,6 +280,9 @@ class FormalRuntime:
                             )
                             try:
                                 value = self._run(child_token, child, saver, gate)
+                            except MemoryContextChanged:
+                                self._cancel_unstarted(child_token)
+                                raise
                             finally:
                                 services.queue.complete(
                                     child_token, now=services.clock(), outcome="child_returned"
@@ -311,6 +349,8 @@ class FormalRuntime:
                         != item.size_bytes
                     ):
                         raise PermissionError("交接引用与真实不可变产物不匹配")
+                context.guard(token, injection)
+                context.guard_children(token, child_ids, plan.key)
                 verified = plan.verifier(result, tuple(events))
                 observation = {
                     "producer": "host_stage_verifier",

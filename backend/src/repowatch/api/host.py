@@ -7,6 +7,7 @@ from pathlib import Path
 from repowatch.adapters.credentials import WindowsCredentialVault
 from repowatch.adapters.git_objects import GitObjects
 from repowatch.adapters.github import GitHubReadAdapter
+from repowatch.adapters.memory_index import MemoryIndex
 from repowatch.adapters.providers import ProviderAdapter
 from repowatch.adapters.storage.sqlite import SQLiteBusinessStore
 from repowatch.api.app import create_app
@@ -22,6 +23,7 @@ from repowatch.application.github_polling import GitHubPolling
 from repowatch.application.github_reads import GitHubReads, MemorySourceFacts
 from repowatch.application.github_sync import GitHubSynchronization
 from repowatch.application.issue_context import IssueContexts
+from repowatch.application.memory import RepositoryMemory
 from repowatch.application.orchestration import Orchestrator
 from repowatch.application.pr_lifecycle import PullRequestLifecycle
 from repowatch.application.providers import ProviderService
@@ -65,6 +67,8 @@ class HostServices:
         )
         self.queue.target_gate = self.repositories.verify_target
         self.memory_sources = MemorySourceFacts(self.store)
+        self.memories = RepositoryMemory(self.store, self.artifacts)
+        self.memory_index = MemoryIndex(settings, self.memories)
         self.scans = ScanService(
             self.store, GitObjects(settings.data_dir / "git-objects"), self.artifacts
         )

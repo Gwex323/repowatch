@@ -3,6 +3,7 @@ import { initialAmounts, initialize, labels, mutate, request, type Amounts, type
 import "./styles.css";
 import { Repositories } from "./Repositories";
 import { PullRequestLifecycle } from "./PullRequestLifecycle";
+import { MemoryPanel } from "./Memory";
 type Run = (action: () => Promise<unknown>, message?: string) => Promise<void>;
 const statusNames: Record<string, string> = { queued: "排队", running: "执行中", waiting: "等待", blocked: "阻塞", ended: "结束", cancelled: "取消", pending: "待批准", stale: "需刷新", approved: "已批准", rejected: "已拒绝", completed: "通过", failed: "失败", available: "可用", exhausted: "已耗尽", revoked: "已撤销", configuration_required: "待配置" };
 const textStatus = (value: string) => statusNames[value] ?? value;
@@ -478,13 +479,14 @@ export default function App() {
 </>}</div>
 </header>
 <nav aria-label="工作台导航">
-{[["tasks", "任务"], ["items", `待人工事项 ${state ? state.reasons.length + state.renewals.filter(item => ["pending", "stale"].includes(item.state)).length + state.tasks.filter(requiresInput).length : ""}`], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"], ["repositories", "仓库"], ["events", "业务事件"]].map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
+{[["tasks", "任务"], ["items", `待人工事项 ${state ? state.reasons.length + state.renewals.filter(item => ["pending", "stale"].includes(item.state)).length + state.tasks.filter(requiresInput).length : ""}`], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"], ["repositories", "仓库"], ["memory", "记忆"], ["events", "业务事件"]].map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
 {label}</button>)}</nav>
 <div aria-live="polite">
 {error && <p className="notice error" role="alert">
 {error}</p>}{message && <p className="notice success" role="status">
 {message}</p>}{busy && <p className="muted">正在保存并核对结果…</p>}</div>
 {state && <main aria-busy={busy}>
+{tab === "memory" && <MemoryPanel state={state} run={run}/>}
 {tab === "tasks" && <div className="task-layout">
 <section>
 <h2>任务队列</h2>

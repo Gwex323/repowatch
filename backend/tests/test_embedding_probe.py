@@ -74,3 +74,9 @@ def test_selection_falls_back_to_keyword_without_eligible_model():
     selection = select_model(results)
     assert selection["model"] is None
     assert selection["fallback"] == "keyword"
+
+
+def test_selection_requires_declared_chinese_support():
+    selection = select_model([candidate("code-only", ["en", "code"], 1.0, 1.0, 1.0)])
+    assert selection["model"] is None
+    assert selection["fallback"] == "keyword"
