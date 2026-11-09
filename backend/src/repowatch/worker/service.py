@@ -19,6 +19,10 @@ class Worker:
 
     def run_once(self):
         services = self.services
+        from repowatch.worker.memory import MemoryWorker
+
+        if self.plan_factory is None:
+            MemoryWorker(services).schedule()
         services.diagnostics.expire_queued(now=services.clock())
         with services.store.read() as records:
             queued = [
@@ -84,7 +88,8 @@ class Worker:
                 or "candidate_id" in json.loads(claimed["input_json"])
             )
             repair = claimed["mode"] in {"implement", "amend", "reconcile_publication"}
-        if self.plan_factory is None and not scan and not triage and not repair:
+            memory = claimed["mode"] == "distill"
+        if self.plan_factory is None and not scan and not triage and not repair and not memory:
             with services.store.write() as records:
                 run = required(records, "runs", id=token.run_id)
                 block(records, "workspace_adapter_missing", run["task_id"], now=services.clock())
@@ -94,6 +99,10 @@ class Worker:
             return {"state": "blocked", "reason": "workspace_adapter_missing"}
         with ExecutionHeartbeat(services.queue, token, services.clock) as heartbeat:
             try:
+                if memory and self.plan_factory is None:
+                    result = MemoryWorker(services, self.runtime).run(token)
+                    heartbeat.check()
+                    return result
                 if repair and self.plan_factory is None:
                     from repowatch.worker.repairs import RepairCoordinator
 

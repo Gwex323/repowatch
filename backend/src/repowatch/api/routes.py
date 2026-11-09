@@ -76,6 +76,123 @@ def routes(services):
     def repository_preflight(body: Mutation):
         return services.repositories.preflight(body.operation_id, body.data, now=services.clock())
 
+    @router.get("/repositories/{repository_id}/memories")
+    def repository_memories(repository_id: str):
+        return services.memories.list(repository_id)
+
+    @router.get("/memories/search")
+    def search_memories(repository_id: str, query: str, limit: int = 5):
+        with services.store.read() as records:
+            if records.one("repositories", id=repository_id) is None:
+                raise LookupError("仓库不存在")
+        return services.memory_index.search(repository_id, query, limit=limit)
+
+    @router.get("/memories/{identifier}")
+    def memory_detail(identifier: str):
+        return services.memories.get(identifier)
+
+    @router.post("/memories/{identifier}/{action}")
+    def memory_operation(identifier: str, action: str, body: Mutation):
+        return services.memories.operate(
+            body.operation_id,
+            identifier,
+            expected_revision=body.revision(),
+            action=action,
+            data=body.data,
+        )
+
+    @router.post("/repositories/{repository_id}/memories")
+    def manual_memory(repository_id: str, body: Mutation):
+        identifier = services.memories.record_manual(
+            repository_id,
+            body.operation_id,
+            body.data["content"],
+            now=services.clock(),
+            operation_id=body.operation_id,
+        )
+        return services.memories.get(identifier)
+
+    @router.get("/memory-index")
+    def memory_index_status():
+        return {
+            "status": services.memory_index.status(),
+            "configuration": services.memory_index.configuration(),
+            "models": [
+                "jinaai/jina-embeddings-v2-base-zh",
+                "jinaai/jina-embeddings-v2-base-code",
+                "BAAI/bge-small-zh-v1.5",
+            ],
+            "selection_warning": "候选尚未通过真实语料选型门槛；默认使用关键词检索",
+        }
+
+    @router.post("/memory-index/configure")
+    def configure_memory_index(body: Mutation):
+        from repowatch.application.budgets import remember_operation, replay_operation
+        from repowatch.application.storage import ConflictError
+        from repowatch.domain.task_records import canonical_json
+
+        model = body.data.get("model")
+        if model not in [None, *memory_index_status()["models"]]:
+            raise ValueError("未锁定的编码模型")
+        request = {"memory_index": body.data, "revision": body.revision()}
+        with services.store.write() as records:
+            fingerprint, replay = replay_operation(records, body.operation_id, request)
+            if replay is not None:
+                return replay
+            current = records.one("memory_index_configuration", singleton=1)
+            if current["revision"] != body.revision():
+                raise ConflictError("索引配置已变化")
+            result = {
+                "revision": current["revision"] + 1,
+                "configuration_json": canonical_json({"model": model}),
+            }
+            records.change("memory_index_configuration", {"singleton": 1}, result)
+            remember_operation(records, body.operation_id, fingerprint, body.revision(), result)
+        return result
+
+    @router.post("/memory-index/rebuild")
+    def rebuild_memory_index(body: Mutation):
+        from repowatch.application.budgets import remember_operation, replay_operation
+        from repowatch.application.storage import ConflictError
+
+        request = {"memory_index_rebuild": True, "revision": body.revision()}
+        with services.store.write() as records:
+            fingerprint, replay = replay_operation(records, body.operation_id, request)
+            if replay is not None:
+                return replay
+            if (
+                records.one("memory_index_configuration", singleton=1)["revision"]
+                != body.revision()
+            ):
+                raise ConflictError("索引配置已变化")
+        result = services.memory_index.rebuild()
+        with services.store.write() as records:
+            fingerprint, replay = replay_operation(records, body.operation_id, request)
+            if replay is not None:
+                return replay
+            remember_operation(records, body.operation_id, fingerprint, body.revision(), result)
+        return result
+
+    @router.get("/memory-audits")
+    def memory_audits(repository_id: str):
+        with services.store.read() as records:
+            runs = {
+                row["id"]
+                for row in records.find("runs")
+                if records.one("tasks", id=row["task_id"])["repository_id"] == repository_id
+            }
+            return {
+                "request_checks": [
+                    dict(row)
+                    for row in records.find("memory_request_audits")
+                    if row["run_id"] in runs
+                ],
+                "scope": (
+                    "记录请求前依赖核验，实际发送以调用账本为准。"
+                    "删除记忆不撤回已发送请求，也不删除原任务审计。"
+                ),
+            }
+
     @router.get("/repositories/{repository_id}/scans")
     def scans(repository_id: str):
         return services.scans.view(repository_id)

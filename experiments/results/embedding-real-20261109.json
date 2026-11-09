@@ -1,0 +1,393 @@
+{
+  "evaluated_at": "2026-11-09T07:07:03.865152+00:00",
+  "corpus_sha256": "94fb5041ba39286b5b9f4f5aef4af6922326b4c19b3cb0c5b439eda88e7418c1",
+  "asset_lock_sha256": "ca709cb3e3ed5186cb0c8a5062eedccec92f5410a8c9da204943e6afcd69292c",
+  "dependency_lock_sha256": "cc4cfc7fb839cd144836f86ffb57733c6a46bff91d38b1b142904ce472ac9316",
+  "script_sha256": "c4c1d718929350c9bf5abd77615a5011a9b6cbca1009c5484b82bab626f2c84f",
+  "evaluator_sha256": "ad00606888533bf8dd116fe067dfbded3775bb60aaa111c6d5f5e5837908b9b4",
+  "runtime": {
+    "fastembed": "0.9.1",
+    "onnxruntime": "1.31.1",
+    "psutil": "7.2.2",
+    "sqlite-vec": "0.1.9"
+  },
+  "components": {
+    "sqlite_version": "3.46.0",
+    "fts5": true,
+    "fts": {
+      "unicode61": {
+        "登录": {
+          "matches": 0,
+          "error": null
+        },
+        "登录超时": {
+          "matches": 0,
+          "error": null
+        },
+        "用户被强制退出": {
+          "matches": 0,
+          "error": null
+        },
+        "令牌刷新失败": {
+          "matches": 0,
+          "error": null
+        },
+        "数据库迁移": {
+          "matches": 0,
+          "error": null
+        },
+        "create_app": {
+          "matches": 0,
+          "error": null
+        }
+      },
+      "trigram": {
+        "登录": {
+          "matches": 0,
+          "error": null
+        },
+        "登录超时": {
+          "matches": 0,
+          "error": null
+        },
+        "用户被强制退出": {
+          "matches": 0,
+          "error": null
+        },
+        "令牌刷新失败": {
+          "matches": 0,
+          "error": null
+        },
+        "数据库迁移": {
+          "matches": 0,
+          "error": null
+        },
+        "create_app": {
+          "matches": 0,
+          "error": null
+        }
+      }
+    },
+    "like": {
+      "登录": 0,
+      "登录超时": 0,
+      "用户被强制退出": 0,
+      "令牌刷新失败": 0,
+      "数据库迁移": 0,
+      "create_app": 0
+    },
+    "sqlite_vec": true,
+    "sqlite_vec_error": null,
+    "sqlite_vec_distance": "cosine"
+  },
+  "models": [
+    {
+      "model": "BAAI/bge-small-zh-v1.5",
+      "error": null,
+      "license": "mit",
+      "dim": 512,
+      "size_in_gb": 0.09,
+      "description": "Text embeddings, Unimodal (text), Chinese, 512 input tokens truncation, Prefixes for queries/documents: not so necessary, 2023 year.",
+      "sources": {
+        "hf": "Qdrant/bge-small-zh-v1.5",
+        "url": null,
+        "_deprecated_tar_struct": true
+      },
+      "model_file": "model_optimized.onnx",
+      "load_seconds": 0.155,
+      "offline_load_ok": true,
+      "offline_load_seconds": 0.132,
+      "encode_seconds": 0.746,
+      "rss_mb_after_load": 181.9,
+      "rss_mb_delta": 102.9,
+      "metrics": {
+        "overall": {
+          "recall_at_3": 0.75,
+          "mrr": 0.734375
+        },
+        "zh": {
+          "recall_at_3": 0.5,
+          "mrr": 0.46875
+        },
+        "code": {
+          "recall_at_3": 1.0,
+          "mrr": 1.0
+        }
+      },
+      "declared_languages": [
+        "zh"
+      ],
+      "rankings": {
+        "加法函数错误地做了减法": [
+          "1",
+          "3",
+          "18"
+        ],
+        "直接发布路径修复加法的拉取请求": [
+          "18",
+          "16",
+          "17"
+        ],
+        "通过用户派生仓库修复加法的拉取请求": [
+          "18",
+          "16",
+          "1"
+        ],
+        "乘法应返回两数的积": [
+          "17",
+          "15",
+          "18"
+        ],
+        "sub(5, 2) should return 3": [
+          "17",
+          "1",
+          "15"
+        ],
+        "mul(2, 0) must equal zero": [
+          "15",
+          "3",
+          "1"
+        ],
+        "add(2, 3) returns -1 instead of 5": [
+          "1",
+          "17",
+          "3"
+        ],
+        "addition must preserve zero and negative operands": [
+          "3",
+          "1",
+          "2"
+        ]
+      },
+      "expected_ranks": {
+        "加法函数错误地做了减法": 1,
+        "直接发布路径修复加法的拉取请求": 8,
+        "通过用户派生仓库修复加法的拉取请求": 4,
+        "乘法应返回两数的积": 2,
+        "sub(5, 2) should return 3": 1,
+        "mul(2, 0) must equal zero": 1,
+        "add(2, 3) returns -1 instead of 5": 1,
+        "addition must preserve zero and negative operands": 1
+      },
+      "sqlite_vec_top3": {
+        "top_ids": [
+          "1",
+          "3",
+          "18"
+        ]
+      },
+      "revision": "46fbe35fd4374a00fee7de77dfddaeb6dd6a2c59",
+      "eligible": false,
+      "rejection": "recall_below_gate:zh=0.500,code=1.000"
+    },
+    {
+      "model": "jinaai/jina-embeddings-v2-base-zh",
+      "error": null,
+      "license": "apache-2.0",
+      "dim": 768,
+      "size_in_gb": 0.64,
+      "description": "Text embeddings, Unimodal (text), supports mixed Chinese-English input text, 8192 input tokens truncation, Prefixes for queries/documents: not necessary, 2024 year.",
+      "sources": {
+        "hf": "jinaai/jina-embeddings-v2-base-zh",
+        "url": null,
+        "_deprecated_tar_struct": false
+      },
+      "model_file": "onnx/model.onnx",
+      "load_seconds": 1.609,
+      "offline_load_ok": true,
+      "offline_load_seconds": 2.398,
+      "encode_seconds": 7.78,
+      "rss_mb_after_load": 722.7,
+      "rss_mb_delta": 630.5,
+      "metrics": {
+        "overall": {
+          "recall_at_3": 0.75,
+          "mrr": 0.74375
+        },
+        "zh": {
+          "recall_at_3": 0.5,
+          "mrr": 0.4875
+        },
+        "code": {
+          "recall_at_3": 1.0,
+          "mrr": 1.0
+        }
+      },
+      "declared_languages": [
+        "zh"
+      ],
+      "rankings": {
+        "加法函数错误地做了减法": [
+          "1",
+          "17",
+          "3"
+        ],
+        "直接发布路径修复加法的拉取请求": [
+          "16",
+          "18",
+          "1"
+        ],
+        "通过用户派生仓库修复加法的拉取请求": [
+          "18",
+          "16",
+          "1"
+        ],
+        "乘法应返回两数的积": [
+          "17",
+          "15",
+          "3"
+        ],
+        "sub(5, 2) should return 3": [
+          "17",
+          "1",
+          "15"
+        ],
+        "mul(2, 0) must equal zero": [
+          "15",
+          "17",
+          "4"
+        ],
+        "add(2, 3) returns -1 instead of 5": [
+          "1",
+          "17",
+          "3"
+        ],
+        "addition must preserve zero and negative operands": [
+          "3",
+          "1",
+          "15"
+        ]
+      },
+      "expected_ranks": {
+        "加法函数错误地做了减法": 1,
+        "直接发布路径修复加法的拉取请求": 5,
+        "通过用户派生仓库修复加法的拉取请求": 4,
+        "乘法应返回两数的积": 2,
+        "sub(5, 2) should return 3": 1,
+        "mul(2, 0) must equal zero": 1,
+        "add(2, 3) returns -1 instead of 5": 1,
+        "addition must preserve zero and negative operands": 1
+      },
+      "sqlite_vec_top3": {
+        "top_ids": [
+          "1",
+          "17",
+          "3"
+        ]
+      },
+      "revision": "c1ff9086a89a1123d7b5eff58055a665db4fb4b9",
+      "eligible": false,
+      "rejection": "recall_below_gate:zh=0.500,code=1.000"
+    },
+    {
+      "model": "jinaai/jina-embeddings-v2-base-code",
+      "error": null,
+      "license": "apache-2.0",
+      "dim": 768,
+      "size_in_gb": 0.64,
+      "description": "Text embeddings, Unimodal (text), Multilingual (English, 30 programming languages), 8192 input tokens truncation, Prefixes for queries/documents: not necessary, 2024 year.",
+      "sources": {
+        "hf": "jinaai/jina-embeddings-v2-base-code",
+        "url": null,
+        "_deprecated_tar_struct": false
+      },
+      "model_file": "onnx/model.onnx",
+      "load_seconds": 2.454,
+      "offline_load_ok": true,
+      "offline_load_seconds": 2.162,
+      "encode_seconds": 8.893,
+      "rss_mb_after_load": 736.3,
+      "rss_mb_delta": 633.4,
+      "metrics": {
+        "overall": {
+          "recall_at_3": 0.75,
+          "mrr": 0.7375
+        },
+        "zh": {
+          "recall_at_3": 0.5,
+          "mrr": 0.6
+        },
+        "code": {
+          "recall_at_3": 1.0,
+          "mrr": 0.875
+        }
+      },
+      "declared_languages": [
+        "en",
+        "code"
+      ],
+      "rankings": {
+        "加法函数错误地做了减法": [
+          "1",
+          "17",
+          "3"
+        ],
+        "直接发布路径修复加法的拉取请求": [
+          "18",
+          "16",
+          "15"
+        ],
+        "通过用户派生仓库修复加法的拉取请求": [
+          "18",
+          "16",
+          "15"
+        ],
+        "乘法应返回两数的积": [
+          "15",
+          "3",
+          "17"
+        ],
+        "sub(5, 2) should return 3": [
+          "17",
+          "1",
+          "3"
+        ],
+        "mul(2, 0) must equal zero": [
+          "15",
+          "3",
+          "1"
+        ],
+        "add(2, 3) returns -1 instead of 5": [
+          "1",
+          "3",
+          "17"
+        ],
+        "addition must preserve zero and negative operands": [
+          "1",
+          "3",
+          "17"
+        ]
+      },
+      "expected_ranks": {
+        "加法函数错误地做了减法": 1,
+        "直接发布路径修复加法的拉取请求": 5,
+        "通过用户派生仓库修复加法的拉取请求": 5,
+        "乘法应返回两数的积": 1,
+        "sub(5, 2) should return 3": 1,
+        "mul(2, 0) must equal zero": 1,
+        "add(2, 3) returns -1 instead of 5": 1,
+        "addition must preserve zero and negative operands": 2
+      },
+      "sqlite_vec_top3": {
+        "top_ids": [
+          "1",
+          "17",
+          "3"
+        ]
+      },
+      "revision": "516f4baf13dec4ddddda8631e019b5737c8bc250",
+      "eligible": false,
+      "rejection": "recall_below_gate:zh=0.500,code=1.000"
+    }
+  ],
+  "selection": {
+    "model": null,
+    "alternates": [],
+    "fallback": "keyword",
+    "rule": "中文与代码 recall@3 均不低于 0.75、离线加载成功且模型声明支持中文；在满足条件的候选中按总体 MRR、recall@3、加载时间与体积排序；无候选时降级关键词检索",
+    "corpus_sha256": "5acf99e071196c04f352fef3f9025d75db5f4db5f4e8ea57b5f2a3af92816847",
+    "corpus_size": 8,
+    "query_count": 8
+  },
+  "limitations": "受控算术夹具真实远端记录；人工查询；非生产泛化或 E12 对照集"
+}

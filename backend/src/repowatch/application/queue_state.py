@@ -24,6 +24,13 @@ def is_ready(records: RecordPort, task) -> bool:
         or records.find("scan_dependencies", waiting_task_id=task["id"])
     ):
         return False
+    if task["mode"] == "distill":
+        from repowatch.application.memory import MemorySourceUnavailable, require_memory_source
+
+        try:
+            require_memory_source(records, task)
+        except MemorySourceUnavailable:
+            return False
     if task["mode"] == "triage" and task["issue_id"] is not None:
         from repowatch.domain.triage import admission_eligible
 

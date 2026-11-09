@@ -2,6 +2,35 @@
 
 日期：2026-11-04。范围：宿主 SQLite 的 FTS5／`sqlite-vec` 加载验证，三种本地 CPU 嵌入模型在 22 条中文／代码语料、12 条查询上的许可证、离线加载、召回与资源评测，以及编码规则和关键词降级路径。它是 P0 选型实验，不是产品检索实现，也不替代 P3 的真实仓库评测。
 
+## 真实 Issue／PR 复评与资产锁定
+
+核验日期：2026-11-09。用户授权只读获取真实语料及锁定编码运行时。本轮使用 `Gwex323/repowatch-p3-sandbox` 的 Issue #1／#3／#15／#17 和 PR #2／#4／#16／#18，共 8 条标题与完整正文，排除重复中间 Issue；未写入 GitHub。这是远端真实记录，但内容仍是受控算术夹具，不能代表生产仓库。
+
+固定语料、来源 URL、远端更新时间、采集时间及 8 条人工相关性标注查询保存在 [语料快照](../../experiments/fixtures/embedding-real.json)，其中中文与代码查询各 4 条。每条查询指定一个目标记录；未将关联 Issue／PR 自动视为同一相关项。语料文件、索引正文与查询、依赖锁、资产锁及执行代码摘要见[复评报告](../../experiments/results/embedding-real-20261109.json)。评测不调参、不按结果替换查询，保留未命中及目标排名。
+
+| 候选 | 中文 recall@3 | 代码 recall@3 | 总体 MRR | 本轮结论 |
+| --- | --- | --- | --- | --- |
+| `BAAI/bge-small-zh-v1.5` | 0.50 | 1.00 | 0.734375 | 中文未过 0.75 门槛 |
+| `jinaai/jina-embeddings-v2-base-zh` | 0.50 | 1.00 | 0.743750 | 中文未过 0.75 门槛 |
+| `jinaai/jina-embeddings-v2-base-code` | 0.50 | 1.00 | 0.737500 | 中文未过门槛，且未声明中文支持 |
+
+三者均完成 CPU 离线加载、编码、再次离线加载及 sqlite-vec 查询；独立进程重跑得到相同召回结果。两条查询要求识别直接／Fork 发布的 PR，原 PR 标题与正文主要是发布模板，未进入前三。此观察不证明模型能否检索更广泛的生产问题。按原有门槛，本轮 `selection.model=null`、`fallback=keyword`；P0 的中文主选只保留为历史结果，当前没有通过复评的默认语义模型。关键词降级是既定实现路线，尚非已完成的产品检索。
+
+编码运行时使用 [pyproject](../../backend/pyproject.toml) 的非默认 `embedding` 依赖组：FastEmbed 0.9.1、ONNX Runtime 1.31.1、psutil 7.2.2、sqlite-vec 0.1.9；[uv.lock](../../backend/uv.lock) 固定全部传递依赖及分发包摘要。已实际按锁安装并离线核对声明一致；不再依赖 `.cache/embedding-eval` 中未锁定的评测环境。
+
+[模型资产锁](../../experiments/embedding-assets.lock.json) 固定三个候选的来源仓库、完整 revision 和全部缓存文件 SHA-256（包括 ONNX、tokenizer 与配置）。中文候选 revision 为 `c1ff9086a89a1123d7b5eff58055a665db4fb4b9`，ONNX SHA-256 为 `4b0e9fa6e5c77cff56e0c9c673ba1aad61e793e592fdd4b05690b68826b7d3a2`。复评先检查完整文件清单与摘要，再以 `specific_model_path` 指向固定快照，禁止隐式下载；文件缺失、增加或篡改均拒绝加载。`lock` 动作仅供显式重新锁定，不应在复跑前自动运行以掩盖变化。资产未纳入 Git，其他设备须另行准备与锁文件一致的资产，本次未验证全新设备分发。
+
+复跑（已有匹配资产）：
+
+```powershell
+uv sync --project backend --locked --group embedding --group dev
+$env:HF_HUB_OFFLINE='1'
+backend/.venv/Scripts/python.exe experiments/embedding-real.py evaluate
+backend/.venv/Scripts/python.exe -m pytest backend/tests/test_embedding_probe.py backend/tests/test_embedding_assets.py -q
+```
+
+本轮专项 7 项通过，Ruff 检查／格式通过；未执行全后端、浏览器、生产记忆集成、E10／E12／E16 或真实付费模型。本轮不是 10.9 的至少 30 项时序／仓库隔离对照集；生产召回、混合检索与结构化关联、并发内存限制仍待 P5 验证。以下章节为 P0 历史实验详情，当前结论以本节为准。
+
 ## 组件结果
 
 宿主使用 SQLite 3.46.0，`sqlite-vec` 0.1.9。验证结果：
@@ -63,7 +92,7 @@ backend/.venv/Scripts/python.exe experiments/run.py embedding-contracts
 backend/.venv/Scripts/python.exe experiments/run.py embedding --model BAAI/bge-small-zh-v1.5 --model jinaai/jina-embeddings-v2-base-zh --model jinaai/jina-embeddings-v2-base-code
 ```
 
-评测依赖安装在已忽略的 `.cache/embedding-eval`（FastEmbed 0.9.1、ONNX Runtime、psutil），未写入项目锁文件；模型缓存为 `.cache/fastembed`。首次运行需联网下载模型，之后可离线复跑。生产检索依赖是否采用同一运行时，待 P1／P3 决定后锁定，不能把实验目录当作已安装的产品依赖。
+P0 当时的依赖位于已忽略的 `.cache/embedding-eval`，未写入锁文件。2026-11-09 起使用上方锁定的可选依赖组与固定资产；评测加载仅使用本地文件。旧入口仍保留 P0 语料，真实语料复评使用上方 `embedding-real.py evaluate`，不混用两类报告。
 
 ## 限制
 

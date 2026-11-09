@@ -12,10 +12,11 @@ from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.delegation import Delegation
 from repowatch.application.github_reads import issue_input
 from repowatch.application.issue_context import IssueContexts
+from repowatch.application.memory import MemorySourceUnavailable, RepositoryMemory
 from repowatch.application.pr_lifecycle import PullRequestLifecycle
 from repowatch.application.progress import ProgressService
 from repowatch.application.repair_evidence import RepairEvidence, file_manifest
-from repowatch.application.task_records import execution_record, required
+from repowatch.application.task_records import business_event, execution_record, required
 from repowatch.application.workspaces import WorkspaceService
 from repowatch.domain.budget import BudgetAmounts
 from repowatch.domain.dependencies import dependency_plan
@@ -455,6 +456,26 @@ class RepairCoordinator:
                 from repowatch.application.publication import Publisher
 
                 return Publisher(services, self.evidence).publish(token, session_id, remote)
+            self.record_failure_memory(
+                token,
+                session_id,
+                str(round_index),
+                {
+                    "symptoms": acceptance["content"]["objective"][:16000],
+                    "applicability": "仅来源仓库与已保存的 base／候选代码版本",
+                    "method": "尝试候选 " + frozen["sha"] + "，未通过当前完整验收",
+                    "verification": canonical_json(
+                        {
+                            "candidate_probe": after_outcome,
+                            "regression_passed": all(item["passed"] for item in comparisons),
+                            "review_passed": decision.passed,
+                            "weakened_paths": weakened,
+                        }
+                    )[:16000],
+                    "limitations": "失败方法仅作风险提示，具体原因回查原始产物；根因未证实。",
+                },
+                artifacts,
+            )
             resolved = []
             for old, new in zip(baseline, regression, strict=True):
                 comparison = compare_regression(old[0], new[0], old[1], new[1])
@@ -485,6 +506,22 @@ class RepairCoordinator:
             with services.store.write() as records:
                 records.change("repair_sessions", {"id": session_id}, {"state": "blocked"})
             self.workspaces.remove(token, candidate["id"], now=services.clock())
+
+    def record_failure_memory(self, token, session_id, key, content, artifact_ids):
+        try:
+            RepositoryMemory(self.services.store, self.services.artifacts).record_attempt(
+                session_id, key, content, artifact_ids, now=self.services.clock()
+            )
+        except (ValueError, PermissionError, LookupError, MemorySourceUnavailable) as error:
+            with self.services.store.write() as records:
+                run = execution_record(records, token, self.services.clock())
+                business_event(
+                    records,
+                    "failure_memory_skipped",
+                    run["task_id"],
+                    session_id=session_id,
+                    error_type=type(error).__name__,
+                )
 
     def record_attempt(self, token, frozen, outcome, comparisons, progress_ids):
         payload = {

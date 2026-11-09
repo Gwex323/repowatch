@@ -17,7 +17,8 @@
 | `backend/pyproject.toml`、`backend/uv.lock` | Python 3.12 开发工程与锁定依赖 |
 | `backend/src/repowatch/` | domain 业务对象，application 业务端口与持久化，adapters 的 SQLite、Windows 作业／凭据、模型、GitHub 与受控工作区适配；runtime 正式图及原型，api／worker 正式入口与串行派发 |
 | `backend/src/repowatch/application/` 的 P4 模块 | `github_sync.py`、`github_polling.py`、`remote_observations.py`、`pr_lifecycle.py` 分别管理巡检、端点缓存／水位、原子观测和 PR／CI／评审范围；API 生命周期位于 `backend/src/repowatch/api/synchronizer.py`，返修沿用既有 Worker 与受控发布器 |
-| `backend/migrations/`、`backend/tests/` | 保留历史迁移并接续正式 schema；P0—P4 各模块、跨层及受控故障回归，当前要求与通过范围见 NOW |
+| P5 记忆模块 | `application/memory.py` 管来源／版本／共享与反馈；`application/memory_context.py` 管可撤销注入；`adapters/memory_index.py` 管锁定 CPU 编码、FTS／向量派生索引；`worker/memory.py` 管共享来源预算的提炼和复核；`frontend/src/Memory.tsx` 提供管理界面 |
+| `backend/migrations/`、`backend/tests/` | 保留历史迁移并接续正式 schema；P0—P5 各模块、跨层及受控故障回归，当前要求与通过范围见 NOW |
 | `frontend/` | React／TypeScript／Vite、锁文件和控制台；`Synchronization.tsx`、`PullRequestLifecycle.tsx` 提供 P4 入口；`dist/` 由 API 同源提供，浏览器不承载任务执行 |
 | `experiments/run.py`、`experiments/results/` | 本地切片及 E1 实验入口、公开脱敏报告；私有原始结果位于已忽略的 `results/local/` |
 | `experiments/p1-browser.mjs`、`experiments/p1_browser_host.py` | P1 Edge 浏览器操作与临时回环宿主夹具，证据位于已忽略的 `.cache/p1-browser/` |

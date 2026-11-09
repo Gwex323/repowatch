@@ -53,6 +53,20 @@ def api(tmp_path):
     services.close()
 
 
+def test_repository_memory_read_has_no_model_side_effect(api):
+    client, _, services, _ = api
+    repository = services.tasks.register_repository("memory-view", admission_mode="all_bugs")
+    content = {
+        key: "人工待验证"
+        for key in ("symptoms", "applicability", "method", "verification", "limitations")
+    }
+    services.memories.record_manual(repository, "manual-test", content, now=0)
+    response = client.get(f"/api/v1/repositories/{repository}/memories")
+    assert response.status_code == 200
+    assert response.json()[0]["state"] == "manual_unverified"
+    assert client.get("/api/v1/repositories/missing/memories").status_code == 404
+
+
 def mutation(key, revision=None, **data):
     return {"operation_id": key, "expected_revision": revision, "data": data}
 

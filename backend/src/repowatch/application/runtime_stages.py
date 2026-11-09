@@ -3,6 +3,7 @@
 import json
 
 from repowatch.application.budget_accounting import ledger_values, meter_execution
+from repowatch.application.memory import require_memory_source
 from repowatch.application.progress import ensure_window
 from repowatch.application.stages import StageResults
 from repowatch.application.storage import ConflictError
@@ -54,6 +55,7 @@ class RuntimeStages:
         reason = None
         with self.store.write() as records:
             run = execution_record(records, token, now)
+            require_memory_source(records, required(records, "tasks", id=run["task_id"]))
             stage = required(records, "runtime_stages", id=stage_id)
             if stage["run_id"] != run["id"] or stage["state"] != "running":
                 raise PermissionError("图阶段不属于当前运行或已结束")

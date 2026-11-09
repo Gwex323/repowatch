@@ -1,0 +1,105 @@
+{
+  "captured_at": "2026-11-09T07:03:32.485349+00:00",
+  "repository": "Gwex323/repowatch-p3-sandbox",
+  "limitations": "受控算术夹具真实远端记录；人工查询；非生产泛化或 E12 对照集",
+  "documents": [
+    {
+      "number": 1,
+      "title": "add() subtracts instead of summing",
+      "body": "The public test fixture reproduces an arithmetic defect: `add(2, 3)` returns `-1` but should return `5`. RepoWatch P3 controlled publication acceptance may use this issue.",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/1",
+      "updated_at": "2026-11-06T06:24:22Z"
+    },
+    {
+      "number": 2,
+      "title": "RepoWatch: fix issue #1",
+      "body": "## 概述\n\nFix the confirmed arithmetic defect in issue #1.\n\n## 验证/验收\n\nThe fixture now returns `left + right`; RepoWatch P3 controlled publication acceptance records the base and head SHAs.\n\nCloses #1\n\n<!-- repowatch-publication:p3-direct-issue-1 -->",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/2",
+      "updated_at": "2026-11-06T06:26:26Z"
+    },
+    {
+      "number": 3,
+      "title": "Fork path: add() should preserve mathematical sum",
+      "body": "The fork publication path must preserve addition for zero and negative operands.",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/3",
+      "updated_at": "2026-11-06T06:34:08Z"
+    },
+    {
+      "number": 4,
+      "title": "RepoWatch: fix issue #3 via fork",
+      "body": "## Summary\n\nFixes the confirmed arithmetic defect in issue #3 through the authorized user fork.\n\nCloses #3\n\n<!-- repowatch-publication:p3-fork-issue-3 -->",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/4",
+      "updated_at": "2026-11-06T06:54:50Z"
+    },
+    {
+      "number": 15,
+      "title": "Make mul() return the arithmetic product",
+      "body": "\n\n验收目标：\n[\"mul(2, 3) == 6\",\"mul(2, 0) == 0\"]\n\n扫描候选：candidate:7d5f4100-6897-5ef6-b637-4a1f66043cd5\n\n<!-- repowatch-candidate:6d06fe1c-a9bd-5ee0-bf1b-1335f9be5b83 -->",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/15",
+      "updated_at": "2026-11-09T03:44:13Z"
+    },
+    {
+      "number": 16,
+      "title": "RepoWatch: fix issue #15",
+      "body": "## 概述\n\n处理已确认的 Issue #15。\n\n## 变更内容\n\n来源：github:issue:6239516253；扫描候选：7d5f4100-6897-5ef6-b637-4a1f66043cd5\n\n## 设计方案/说明\n\n变更绑定冻结候选与当前验收规范。\n\n## 验证/验收\n\n修改前后探针、回归与独立审查证据：\n\n```json\n{\"artifact_ids\":[\"ee712ac2-70bb-53f9-bfc0-590f4d906a9b\",\"3b1d1384-d8f8-5885-bdb4-22a006aa6d14\",\"063dd733-9022-5753-97cd-9aa8c0136087\",\"e377700e-a7d4-567d-ab27-a0f0808cf1fa\"],\"base_probe\":{\"exit_code\":1,\"log_sha256\":\"39c906536e7209ea2f0c330ca679525748dda002244a2475b3ab25f421844e13\"},\"candidate_probe\":{\"exit_code\":0,\"log_sha256\":\"a361c11536683dfe537362ce3c5d354bea6e2938644fd69e2c08fdb0ebd3061a\"},\"limitations\":[\"PR 专属 CI 尚未执行\",\"证据归档位于本地\"],\"review_passed\":true,\"review_run_id\":\"c32bd4da-dc3f-4f5b-8d1a-59bfd9e6998c\"}\n```\n\nPR 专属 CI 尚未执行。\n\n## review记录\n\n独立只读审查通过；结论摘要：通过。\n\nCloses #15\n\n<!-- repowatch-publication:17c25a71-4314-4c20-9b7e-331322ef5d1a -->",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/16",
+      "updated_at": "2026-11-09T03:44:12Z"
+    },
+    {
+      "number": 17,
+      "title": "Make sub() return the arithmetic difference",
+      "body": "\n\n验收目标：\n[\"sub(5, 2) == 3\",\"sub(2, 5) == -3\"]\n\n扫描候选：candidate:a1945fb5-53af-588d-af18-ea889e27ceb2\n\n<!-- repowatch-candidate:3c8a910e-2368-556c-a6c3-1e5904f36084 -->",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/17",
+      "updated_at": "2026-11-06T09:06:12Z"
+    },
+    {
+      "number": 18,
+      "title": "RepoWatch: fix issue #17",
+      "body": "## 概述\n\n处理已确认的 Issue #17。\n\n## 变更内容\n\n来源：github:issue:6239877510；扫描候选：a1945fb5-53af-588d-af18-ea889e27ceb2\n\n## 设计方案/说明\n\n变更绑定冻结候选与当前验收规范。\n\n## 验证/验收\n\n修改前后探针、回归与独立审查证据：\n\n```json\n{\"artifact_ids\":[\"7021a7bc-0c3b-57f1-a496-92724809dc4a\",\"5b8bced2-9763-5ffa-a212-d1543e21417d\",\"68157a52-9308-5d15-990d-a2218d6666dd\",\"f802c13d-ea7c-5f9b-8f2c-81d9a005db17\",\"e2107746-6610-5923-a56a-57938f34d132\",\"a63b3f98-86f6-5c85-85dd-5b771fc14ff6\"],\"base_probe\":{\"exit_code\":1,\"log_sha256\":\"39c906536e7209ea2f0c330ca679525748dda002244a2475b3ab25f421844e13\"},\"candidate_probe\":{\"exit_code\":0,\"log_sha256\":\"a66867ac34fa743b755aecebaab638aa5bdd828440879d163b1ba0c34bf1825c\"},\"limitations\":[\"PR 专属 CI 尚未执行\",\"证据归档位于本地\"],\"review_passed\":true,\"review_run_id\":\"ba11a08f-2b86-4781-97fc-7e3dc9f07de1\"}\n```\n\nPR 专属 CI 尚未执行。\n\n## review记录\n\n独立只读审查通过；结论摘要：通过。\n\nCloses #17\n\n<!-- repowatch-publication:17be3f62-90f9-445f-becb-52b32c640af4 -->",
+      "html_url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/18",
+      "updated_at": "2026-11-09T04:20:45Z"
+    }
+  ],
+  "queries": [
+    [
+      "加法函数错误地做了减法",
+      "1",
+      "zh"
+    ],
+    [
+      "直接发布路径修复加法的拉取请求",
+      "2",
+      "zh"
+    ],
+    [
+      "通过用户派生仓库修复加法的拉取请求",
+      "4",
+      "zh"
+    ],
+    [
+      "乘法应返回两数的积",
+      "15",
+      "zh"
+    ],
+    [
+      "sub(5, 2) should return 3",
+      "17",
+      "code"
+    ],
+    [
+      "mul(2, 0) must equal zero",
+      "15",
+      "code"
+    ],
+    [
+      "add(2, 3) returns -1 instead of 5",
+      "1",
+      "code"
+    ],
+    [
+      "addition must preserve zero and negative operands",
+      "3",
+      "code"
+    ]
+  ]
+}

@@ -52,6 +52,9 @@ class ModelCalls:
         policy = policy or RetryPolicy()
         if not call_key:
             raise ValueError("模型调用必须有稳定意图标识")
+        guard = getattr(self, "memory_guard", None)
+        if guard:
+            guard()
         identifier = stable_id("model-call", token.run_id, call_key)
         fingerprint = content_digest(
             {
@@ -95,12 +98,16 @@ class ModelCalls:
             artifact = self.artifacts.require(cached, run_id=token.run_id, now=self.clock())
             return decode((self.artifacts.root / artifact["relative_path"]).read_bytes())
         for attempt in range(attempts + 1, policy.max_attempts + 1):
+            if guard:
+                guard()
             if self.safety:
                 self.safety.preflight(token)
             if self.roles is not None and role_key is not None:
                 self.roles.admit(token, now=self.clock(), keys=(role_key,))
 
             def actual_attempt(attempt=attempt):
+                if guard:
+                    guard(f"{call_key}:{attempt}")
                 if self.safety:
                     self.safety.touch(token)
                 with self.store.write() as records:
