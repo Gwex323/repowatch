@@ -25,6 +25,8 @@ class TriageAnalysis(BaseModel):
     ownership_evidence: list[str] = Field(default_factory=list, max_length=100)
     pr_relations: list[dict] = Field(default_factory=list, max_length=1000)
     issue_relation: dict = Field(default_factory=dict)
+    review_scope: Literal["in_scope", "expanded", "uncertain", "handled"] = "uncertain"
+    review_evidence: list[str] = Field(default_factory=list, max_length=100)
 
 
 def admission_eligible(repository, issue, selected):

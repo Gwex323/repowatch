@@ -13,6 +13,11 @@ from repowatch.domain.scans import checks_for, inventory, readiness
 from repowatch.domain.task_records import canonical_json, content_digest, stable_id
 
 
+def scan_configuration_digest(configuration):
+    # Recovery authorization governs execution, not the scanned environment.
+    return content_digest({k: v for k, v in configuration.items() if k != "recovery_strategy"})
+
+
 class ScanService:
     def __init__(self, store, objects, artifacts):
         self.store, self.objects, self.artifacts = store, objects, artifacts
@@ -41,12 +46,20 @@ class ScanService:
         environment = {
             **environment,
             "manifest_policy": manifest["policy"],
-            "configuration_sha256": content_digest(snapshot["configuration"]),
+            "configuration_sha256": scan_configuration_digest(snapshot["configuration"]),
         }
         identifier = stable_id("scan", task_id, version, environment, manifest["policy"])
         with self.store.write() as records:
             execution_record(records, token, now)
             old = records.one("scan_batches", id=identifier)
+            if old and json.loads(old["checks_json"]) != checks:
+                # A changed check contract needs fresh baseline evidence while
+                # retaining the old batch and its recorded results for audit.
+                environment = {**environment, "check_contract_sha256": content_digest(checks)}
+                identifier = stable_id(
+                    "scan", task_id, version, environment, manifest["policy"]
+                )
+                old = records.one("scan_batches", id=identifier)
             if not old:
                 records.change(
                     "repositories",
@@ -73,6 +86,19 @@ class ScanService:
                     },
                 )
                 business_event(records, "scan_batch_created", task_id, batch_id=identifier)
+            elif old["state"] == "superseded":
+                records.change(
+                    "repositories",
+                    {"id": repository_id},
+                    {"scan_ready_sha": None, "scan_ready_json": None, "scan_ready_batch_id": None},
+                )
+                for previous in records.find("scan_batches", task_id=task_id):
+                    if previous["id"] != identifier and previous["state"] != "superseded":
+                        records.change(
+                            "scan_batches", {"id": previous["id"]}, {"state": "superseded"}
+                        )
+                records.change("scan_batches", {"id": identifier}, {"state": "incomplete"})
+                business_event(records, "scan_batch_reactivated", task_id, batch_id=identifier)
         return identifier
 
     def batch(self, token, identifier, *, now):
@@ -468,7 +494,7 @@ class ScanService:
             run = execution_record(records, token, now)
             task = required(records, "tasks", id=run["task_id"])
             expected = json.loads(batch["environment_json"])["configuration_sha256"]
-            if expected != content_digest(json.loads(task["configuration_json"])):
+            if expected != scan_configuration_digest(json.loads(task["configuration_json"])):
                 raise ConflictError("环境或工具配置变化，须重新核验扫描批次")
         return batch
 
@@ -574,7 +600,7 @@ class ScanService:
                 source_task = required(records, "tasks", id=batch["task_id"])
                 batch["environment_current"] = batch["environment"].get(
                     "configuration_sha256"
-                ) == content_digest(json.loads(source_task["configuration_json"]))
+                ) == scan_configuration_digest(json.loads(source_task["configuration_json"]))
                 batch["coverage"] = [
                     public_record(row)
                     for row in records.find("scan_coverage", batch_id=batch["id"])

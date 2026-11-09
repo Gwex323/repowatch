@@ -34,6 +34,7 @@ from repowatch.worker.repairs import RepairCoordinator
         ("claim", "bug"),
         ("claim", "feature"),
         ("claim", "refactor"),
+        ("amend", "bug"),
     ],
 )
 def test_real_docker_repair_probe_freeze_review_and_evidence(
@@ -320,6 +321,37 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
         {"calc.py": ("100644", implementation)},
         message="fixture",
     )
+    remote_head = None
+    previous_head = None
+    if external == "amend":
+        previous_head = coordinator.objects.commit_files(
+            repo,
+            base["sha"],
+            {
+                "calc.py": ("100644", implementation),
+                "prior.txt": ("100644", b"previous PR content\n"),
+            },
+            message="previous PR",
+        )
+        remote_head = coordinator.objects.commit_files(
+            repo,
+            previous_head["sha"],
+            {
+                "calc.py": ("100644", implementation),
+                "prior.txt": ("100644", b"previous PR content\n"),
+                "external.txt": ("100644", b"preserve external contribution\n"),
+            },
+            message="external head update",
+        )
+        base = coordinator.objects.commit_files(
+            repo,
+            base["sha"],
+            {
+                "calc.py": ("100644", implementation),
+                "target.txt": ("100644", b"current target\n"),
+            },
+            message="current target update",
+        )
     with services.store.write() as records:
         records.change(
             "repositories",
@@ -382,6 +414,53 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
         "decisions": {},
         "managed_pr_id": None,
     }
+    if external == "amend":
+        services.tasks.bind_managed_pr(task, "repair-fixture", "999")
+        with services.store.write() as records:
+            records.change(
+                "repositories",
+                {"id": repo},
+                {
+                    "publication_json": canonical_json(
+                        {
+                            "github_id": "repair-fixture",
+                            "owner": "fixture",
+                            "name": "fixture",
+                        }
+                    )
+                },
+            )
+            records.change("tasks", {"id": task}, {"mode": "amend"})
+            records.add(
+                "publication_intents",
+                {
+                    "id": "original-pr",
+                    "task_id": task,
+                    "repository_id": repo,
+                    "issue_id": "101",
+                    "kind": "pull_request",
+                    "request_json": canonical_json(
+                        {"branch": "repowatch/issue-1", "head_sha": previous_head["sha"]}
+                    ),
+                    "request_sha256": "f" * 64,
+                    "state": "confirmed",
+                    "created_at": 0,
+                    "result_json": canonical_json({"number": 2}),
+                },
+            )
+        remote["managed_pr_id"] = "999"
+        remote["facts"]["pull_requests"] = [
+            {
+                "id": 999,
+                "number": 2,
+                "state": "open",
+                "head": {
+                    "sha": remote_head["sha"],
+                    "ref": "repowatch/issue-1",
+                    "repo": {"id": "repair-fixture"},
+                },
+            }
+        ]
     if external in {"resolved", "unresolved"}:
         remote["facts"]["pull_requests"] = [
             {
@@ -416,9 +495,35 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
 
         monkeypatch.setattr("repowatch.application.issue_context.GitHubReadAdapter", ClaimPort)
         monkeypatch.setattr("repowatch.application.publication.GitHubPublisher", ClaimPort)
-    monkeypatch.setattr(coordinator.objects, "fetch", lambda *args, **kwargs: base["sha"])
+    monkeypatch.setattr(
+        coordinator.objects,
+        "fetch",
+        lambda *args, **kwargs: (
+            remote_head["sha"]
+            if external == "amend" and args[3] == "repowatch/issue-1"
+            else base["sha"]
+        ),
+    )
 
     def published(publisher, token, session_id, context):
+        if external == "amend":
+            session, frozen = publisher.evidence.require_current(token, session_id)
+            assert frozen["publication_head_sha"] == remote_head["sha"]
+            evidence = json.loads(session["evidence_json"])
+            assert evidence["regression_base_sha"] == base["sha"]
+            paths = {item["path"] for item in coordinator.objects.entries(repo, frozen["sha"])}
+            assert {"external.txt", "target.txt", "prior.txt"} <= paths
+            assert (
+                coordinator.objects.run(
+                    coordinator.objects.repository(repo),
+                    "merge-base",
+                    remote_head["sha"],
+                    frozen["sha"],
+                )
+                .decode()
+                .strip()
+                == remote_head["sha"]
+            )
         if external == "claim":
             from repowatch.application.acceptance import acceptance_view
 

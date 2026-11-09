@@ -18,9 +18,12 @@ from repowatch.application.candidate_issues import CandidateIssues
 from repowatch.application.console import Console
 from repowatch.application.control import ControlService
 from repowatch.application.diagnostics import DiagnosticService
+from repowatch.application.github_polling import GitHubPolling
 from repowatch.application.github_reads import GitHubReads, MemorySourceFacts
+from repowatch.application.github_sync import GitHubSynchronization
 from repowatch.application.issue_context import IssueContexts
 from repowatch.application.orchestration import Orchestrator
+from repowatch.application.pr_lifecycle import PullRequestLifecycle
 from repowatch.application.providers import ProviderService
 from repowatch.application.recovery import RecoveryService
 from repowatch.application.repositories import RepositoryService
@@ -55,6 +58,11 @@ class HostServices:
             self.store,
             lambda reference: GitHubReadAdapter(vault=self.vault, credential_reference=reference),
         )
+        self.synchronization = GitHubSynchronization(
+            self.store,
+            GitHubPolling(self),
+            clock=clock,
+        )
         self.queue.target_gate = self.repositories.verify_target
         self.memory_sources = MemorySourceFacts(self.store)
         self.scans = ScanService(
@@ -63,6 +71,7 @@ class HostServices:
         self.console = Console(self.store, self.budgets, self.providers, self.roles)
         self.issue_contexts = IssueContexts(self)
         self.candidate_issues = CandidateIssues(self)
+        self.lifecycle = PullRequestLifecycle(self)
 
     def reconcile_startup(self):
         self.providers.reconcile()

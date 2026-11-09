@@ -30,6 +30,7 @@ RepoWatch 面向本地开发场景，规划以受控 Agent Harness 扫描 GitHub
 | 查修复验证、发布或 PR 返修 | [实施契约](docs/implementation-contracts.md) §5、§8；[工作流程](docs/workflow-design.md) Q29 与“PR 人工评审未通过” |
 | 查供应商、Agent 交接、凭证 | [接入设计](docs/integration-discussion.md) Q31、Q35；[实施契约](docs/implementation-contracts.md) §6；已实现端口及验证边界见 [P1 供应商](docs/development/providers.md) |
 | 查巡检频率和同步行为 | [实施契约](docs/implementation-contracts.md) §7 |
+| 查 P4 巡检配置、检查更新、PR／CI 及评审返修入口 | [持续同步与评审返修](docs/development/local-control.md#p4-持续同步与-pr-评审返修)；当前验收范围和待人工事项见 [NOW](docs/context/NOW.md) |
 | 查记忆内容、检索、反馈和纠错 | [实施契约](docs/implementation-contracts.md) §9；[接入设计](docs/integration-discussion.md) Q32 |
 | 查工程风险、保护措施和待验证实验 | [可行性报告](docs/feasibility-report.md) §8—9；具体实现取舍见 [OpenSpec design](openspec/changes/build-github-issue-agent-harness/design.md) 的 Risks / Trade-offs 与 Open Questions |
 | 查实施范围、验收场景、阶段任务 | [proposal](openspec/changes/build-github-issue-agent-harness/proposal.md) → 按能力选择 [delta specs](openspec/changes/build-github-issue-agent-harness/specs/)；实现方式查 [design](openspec/changes/build-github-issue-agent-harness/design.md)，进度查 [tasks](openspec/changes/build-github-issue-agent-harness/tasks.md)，不默认遍历全部能力 |

@@ -525,7 +525,7 @@ class Orchestrator:
             if batch_id is None:
                 raise PermissionError("导入仓库必须通过覆盖账本核验完成")
             from repowatch.application.artifacts import ArtifactService
-            from repowatch.application.scans import ScanService
+            from repowatch.application.scans import ScanService, scan_configuration_digest
 
             batch = ScanService(
                 self.store, None, ArtifactService(self.store, self.store.settings.artifacts_dir)
@@ -547,7 +547,7 @@ class Orchestrator:
                 environment = json.loads(current_batch["environment_json"])
                 if json.loads(current_batch["version_json"]) != readiness(
                     repository
-                ) or environment.get("configuration_sha256") != content_digest(
+                ) or environment.get("configuration_sha256") != scan_configuration_digest(
                     json.loads(task["configuration_json"])
                 ):
                     raise ConflictError("完成交接期间扫描版本或环境发生变化")

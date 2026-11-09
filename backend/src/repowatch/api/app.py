@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,6 +10,7 @@ from repowatch import __version__
 from repowatch.api.routes import routes
 from repowatch.api.security import COOKIE_NAME, LocalSessions
 from repowatch.api.static_files import FrontendFiles
+from repowatch.api.synchronizer import synchronize
 from repowatch.application.credentials import CredentialError
 from repowatch.application.providers import ProviderSaveError
 from repowatch.application.storage import ConflictError, StorageError
@@ -18,11 +20,25 @@ from repowatch.security import install_log_redaction
 def create_app(services=None, *, sessions: LocalSessions | None = None, static_dir=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app):
+        stop = asyncio.Event()
+        synchronization = getattr(services, "synchronization", None)
+        task = (
+            asyncio.create_task(synchronize(synchronization, stop))
+            if synchronization is not None
+            else None
+        )
         try:
             yield
         finally:
-            if services is not None:
-                services.close()
+            stop.set()
+            if synchronization is not None:
+                synchronization.stop()
+            try:
+                if task is not None:
+                    await task
+            finally:
+                if services is not None:
+                    services.close()
 
     app = FastAPI(title="RepoWatch", version=__version__, lifespan=lifespan)
 

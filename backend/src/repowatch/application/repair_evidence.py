@@ -21,7 +21,9 @@ class RepairEvidence:
     def __init__(self, services, workspaces):
         self.services, self.workspaces = services, workspaces
 
-    def freeze(self, token, workspace, *, parent_sha, message, base_sha=None):
+    def freeze(
+        self, token, workspace, *, parent_sha, message, base_sha=None, publication_head_sha=None
+    ):
         services = self.services
         with services.store.read() as records:
             run = execution_record(records, token, services.clock())
@@ -52,6 +54,7 @@ class RepairEvidence:
                 "manifest_sha256": content_digest(manifest),
                 "base_sha": base_sha or parent_sha,
                 "previous_head_sha": parent_sha if base_sha and base_sha != parent_sha else None,
+                "publication_head_sha": publication_head_sha,
                 "input_revision": task["input_revision"],
                 "feedback_revision": task["feedback_revision"],
                 "acceptance_revision": task["acceptance_revision"],
@@ -125,6 +128,35 @@ class RepairEvidence:
         review = ReviewDecision.model_validate(evidence.get("review"))
         if not review.passed or not review.probe_valid or review.weakened_acceptance:
             raise PermissionError("独审结论未通过")
+        if frozen.get("publication_head_sha"):
+            reproduction = frozen.get("previous_head_sha") or frozen["base_sha"]
+            if (
+                evidence.get("reproduction_sha") != reproduction
+                or evidence.get("regression_base_sha") != frozen["base_sha"]
+            ):
+                raise PermissionError("PR 返修复现基准与完整回归基准不匹配")
+            objects = self.workspaces.backend.objects
+            before_result = evidence.get("base_probe")
+            if not isinstance(before_result, dict) or not isinstance(before_result.get("sha"), str):
+                raise PermissionError("缺少两侧真实探针日志与返修修改前版本")
+            try:
+                objects.require_sha(before_result["sha"])
+            except ValueError:
+                raise PermissionError("返修修改前版本无效") from None
+            workspace = self.workspaces.require(
+                token, session["workspace_id"], now=self.services.clock()
+            )
+            actual_parent = (
+                objects.run(
+                    objects.repository(workspace["repository_id"]),
+                    "rev-parse",
+                    evidence["base_probe"]["sha"] + "^",
+                )
+                .decode()
+                .strip()
+            )
+            if actual_parent != reproduction:
+                raise PermissionError("返修修改前日志不属于当前 PR 复现基准")
         for side, key in (("base", "base_probe"), ("candidate", "candidate_probe")):
             result = evidence.get(key)
             if (

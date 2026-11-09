@@ -107,27 +107,50 @@ class RepositoryService:
             if observed_sha == repository["target_sha"]:
                 return None
             settle_ready(records, now)
-            scan_id = create_task(
-                records,
-                repository_id,
-                f"target-drift:{repository['target_revision']}:{repository['import_epoch']}:"
-                f"{repository['scan_policy_revision']}:{repository['revision']}:{observed_sha}",
+            reusable = next(
+                (
+                    task
+                    for task in records.find("tasks", repository_id=repository_id)
+                    if task["mode"] == "scan"
+                    and task["state"] in {"queued", "waiting", "running", "blocked"}
+                    and all(
+                        json.loads(task["input_json"]).get(key) == value
+                        for key, value in {
+                            "target_sha": observed_sha,
+                            "target_revision": repository["target_revision"],
+                            "import_epoch": repository["import_epoch"],
+                            "scan_policy_revision": repository["scan_policy_revision"],
+                        }.items()
+                    )
+                ),
                 None,
-                "scan",
-                now,
-                owner=owner,
-                input_payload={
-                    "target_sha": observed_sha,
-                    "target_revision": repository["target_revision"],
-                    "import_epoch": repository["import_epoch"],
-                    "scan_policy_revision": repository["scan_policy_revision"],
-                },
             )
-            records.change(
-                "tasks",
-                {"id": scan_id},
-                {"configuration_json": canonical_json(configuration or {})},
+            scan_id = (
+                reusable["id"]
+                if reusable
+                else create_task(
+                    records,
+                    repository_id,
+                    f"target-drift:{repository['target_revision']}:{repository['import_epoch']}:"
+                    f"{repository['scan_policy_revision']}:{repository['revision']}:{observed_sha}",
+                    None,
+                    "scan",
+                    now,
+                    owner=owner,
+                    input_payload={
+                        "target_sha": observed_sha,
+                        "target_revision": repository["target_revision"],
+                        "import_epoch": repository["import_epoch"],
+                        "scan_policy_revision": repository["scan_policy_revision"],
+                    },
+                )
             )
+            if reusable is None:
+                records.change(
+                    "tasks",
+                    {"id": scan_id},
+                    {"configuration_json": canonical_json(configuration or {})},
+                )
             records.change(
                 "repositories",
                 {"id": repository_id},

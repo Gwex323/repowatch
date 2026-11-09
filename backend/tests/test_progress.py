@@ -32,7 +32,15 @@ def setup(k, *, policy=None):
 
 
 def observation(
-    k, token, key, *, semantic="same", facts=(), status="completed", producer="host_stage_verifier"
+    k,
+    token,
+    key,
+    *,
+    semantic="same",
+    facts=(),
+    status="completed",
+    producer="host_stage_verifier",
+    goal_completed=False,
 ):
     return k.artifacts.register(
         token,
@@ -49,6 +57,7 @@ def observation(
                     "target_sha": key,
                 },
                 "verified_fact_ids": list(facts),
+                "goal_completed": goal_completed,
             }
         ).encode(),
         context={"producer": producer, "objective_key": "primary"},
@@ -151,7 +160,8 @@ def test_agent_report_or_nonexistent_progress_fact_is_rejected(kernel):
         )
 
 
-def test_explicit_bounded_retry_starts_new_window_and_preserves_old_attempts(kernel):
+@pytest.mark.parametrize("completed", [False, True])
+def test_explicit_bounded_retry_starts_new_window_and_preserves_old_attempts(kernel, completed):
     k = kernel
     task, token, progress = setup(k)
     for i in range(3):
@@ -173,8 +183,10 @@ def test_explicit_bounded_retry_starts_new_window_and_preserves_old_attempts(ker
         revision = records.one("global_control", singleton=1)["revision"]
     control.resume("resume", expected_revision=revision, now=0)
     retry = k.queue.claim(now=0)
-    result = progress.record(retry, "primary", observation(k, retry, "retry"), now=0)
-    assert result["blocked"] == "bounded_retry_exhausted"
+    result = progress.record(
+        retry, "primary", observation(k, retry, "retry", goal_completed=completed), now=0
+    )
+    assert result["blocked"] == (None if completed else "bounded_retry_exhausted")
     with k.store.read() as records:
         assert len(records.find("progress_attempts")) == 4
         assert records.find("progress_windows")[0]["window"] == 1

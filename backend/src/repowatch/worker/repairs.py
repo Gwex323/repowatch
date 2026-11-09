@@ -6,12 +6,13 @@ from uuid import uuid4
 from langchain_core.tools import tool
 
 from repowatch.adapters.docker_workspaces import DockerWorkspaces, source_path
-from repowatch.adapters.git_objects import GitObjects
+from repowatch.adapters.git_objects import GitObjectError, GitObjects
 from repowatch.application.acceptance import acceptance_view
 from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.delegation import Delegation
 from repowatch.application.github_reads import issue_input
 from repowatch.application.issue_context import IssueContexts
+from repowatch.application.pr_lifecycle import PullRequestLifecycle
 from repowatch.application.progress import ProgressService
 from repowatch.application.repair_evidence import RepairEvidence, file_manifest
 from repowatch.application.task_records import execution_record, required
@@ -124,6 +125,7 @@ class RepairCoordinator:
         self.preparation = dependency_plan(self.objects, repository["id"], manifest)
         checks = checks_for(self.objects, repository["id"], manifest)
         parent_sha = base
+        publication_head_sha = None
         if pending and pending["state"] == "confirmed":
             previous_request = json.loads(pending["request_json"])
             remote_prs = [
@@ -131,18 +133,47 @@ class RepairCoordinator:
                 for pull in remote["facts"]["pull_requests"]
                 if str(pull["id"]) == remote["managed_pr_id"]
             ]
-            if len(remote_prs) != 1 or remote_prs[0]["head"]["sha"] != previous_request["head_sha"]:
-                raise PermissionError("原 PR head 已变化，须先核对并整合外部内容")
-            parent_sha = previous_request["head_sha"]
             if (
-                self.objects.run(
-                    self.objects.repository(repository["id"]), "merge-base", base, parent_sha
-                )
-                .decode()
-                .strip()
-                != base
+                len(remote_prs) != 1
+                or remote_prs[0]["state"] != "open"
+                or remote_prs[0].get("merged_at")
             ):
-                raise PermissionError("当前 base 不在原 PR head 历史中，必须先整合重验")
+                return self.wait(token, "pr_delivery_ended")
+            pull = remote_prs[0]
+            publication_head_sha = pull["head"]["sha"]
+            publication = json.loads(repository["publication_json"])
+            if (
+                str(pull["head"].get("repo", {}).get("id")) != publication["github_id"]
+                or pull["head"].get("ref") != previous_request["branch"]
+            ):
+                raise PermissionError("原 PR 发布身份或分支已变化")
+            fetched_head = self.executor.execute(
+                token,
+                "amend-fetch:" + token.run_id,
+                BudgetAmounts(active_ms=180000),
+                lambda: self.objects.fetch(
+                    repository["id"],
+                    publication["owner"],
+                    publication["name"],
+                    previous_request["branch"],
+                    secret=services.vault.read(repository["credential_reference"]),
+                ),
+                lambda _: {},
+                purpose="tool",
+            )
+            if fetched_head != publication_head_sha:
+                return self.wait(token, "pr_head_changed")
+            try:
+                parent_sha = self.executor.execute(
+                    token,
+                    "amend-integrate:" + token.run_id,
+                    BudgetAmounts(active_ms=180000),
+                    lambda: self.objects.integrate(repository["id"], base, publication_head_sha),
+                    lambda _: {},
+                    purpose="tool",
+                )
+            except GitObjectError:
+                return self.wait(token, "pr_merge_conflict")
         self.claim(token, task, repository, remote)
         if json.loads(repository["policy_json"]).get("claim_comment"):
             remote = IssueContexts(services).read(token)
@@ -152,8 +183,17 @@ class RepairCoordinator:
                 baseline.append(
                     self.check(token, workspace, check["argv"], "baseline:" + check["id"])
                 )
-        probe = self.plan_probe(token, workspace, acceptance)
-        probe_files = dict(base_files)
+        reproduction_sha = parent_sha if publication_head_sha else base
+        reproduction_workspace = (
+            workspace if reproduction_sha == base else self.create(token, reproduction_sha, image)
+        )
+        probe = self.plan_probe(token, reproduction_workspace, acceptance)
+        reproduction_files = {
+            entry["path"]: (entry["mode"], self.objects.blob(repository["id"], entry["oid"]))
+            for entry in self.objects.entries(repository["id"], reproduction_sha)
+            if entry["mode"] != "160000"
+        }
+        probe_files = dict(reproduction_files)
         for path, content in probe.files.items():
             source_path(path)
             if path in base_files and not self.probe_path(path):
@@ -183,7 +223,7 @@ class RepairCoordinator:
         ):
             raise PermissionError("独审拒绝探针材料或发现夹带实现修改")
         probe_commit = self.objects.commit_files(
-            repository["id"], base, probe_files, message="RepoWatch verification probe"
+            repository["id"], reproduction_sha, probe_files, message="RepoWatch verification probe"
         )
         probe_workspace = self.create(token, probe_commit["sha"], workspace["image"], mode="check")
         before = self.check(token, probe_workspace, probe.argv, "probe:base", timeout=probe.timeout)
@@ -248,7 +288,8 @@ class RepairCoordinator:
                 raise PermissionError("纯重构修改前行为检查未通过")
         else:
             behavior_before = None
-        findings = []
+        lifecycle = PullRequestLifecycle(services).view(task["id"])
+        findings = [canonical_json(lifecycle["snapshot"])] if lifecycle else []
         frozen = None
         round_index = 0
         if parent_sha != base:
@@ -275,6 +316,7 @@ class RepairCoordinator:
                 workspace,
                 parent_sha=parent_sha,
                 base_sha=base,
+                publication_head_sha=publication_head_sha,
                 message="RepoWatch: fix issue #" + str(snapshot["input"]["number"]),
             )
             candidate = self.create(token, frozen["sha"], workspace["image"], mode="check")
@@ -392,6 +434,8 @@ class RepairCoordinator:
                     "artifact_ids": artifacts,
                     "probe": probe.model_dump(),
                     "base_probe": before[0],
+                    "reproduction_sha": reproduction_sha,
+                    "regression_base_sha": base,
                     "candidate_probe": after[0],
                     "behavior_base": behavior_before[0] if behavior_before else None,
                     "behavior_candidate": behavior_after[0] if behavior_after else None,
@@ -656,7 +700,11 @@ class RepairCoordinator:
             argv,
             timeout=timeout,
             operation_key=token.run_id + ":" + key,
-            preparation=self.preparation,
+            preparation=dependency_plan(
+                self.objects,
+                workspace["repository_id"],
+                inventory(self.objects, workspace["repository_id"], workspace["sha"]),
+            ),
         )
         artifact = self.services.artifacts.require(
             result["log_artifact_id"], now=self.services.clock()
@@ -707,7 +755,16 @@ class RepairCoordinator:
                 "probe-plan",
                 "repair",
                 "读取源码并提出可执行探针，不修改实现；Bug/功能证明目标前失败后通过，"
-                "重构使用结构目标并另提供 behavior_argv。验收：" + canonical_json(acceptance),
+                "重构使用结构目标并另提供 behavior_argv。PR 返修时当前工作区为复现基准，"
+                "完整 PR 仍将对当前目标 base 运行全套回归。验收与反馈："
+                + canonical_json(
+                    {
+                        "acceptance": acceptance,
+                        "pr_lifecycle": PullRequestLifecycle(self.services).view(
+                            workspace["task_id"]
+                        ),
+                    }
+                ),
                 "reproduce",
                 "processor",
                 (

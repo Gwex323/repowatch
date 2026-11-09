@@ -127,15 +127,43 @@ def checks_for(objects, repository_id, manifest):
                     "basis": "pyproject.toml#tool.ruff",
                 }
             )
-    if any(path.startswith("tests/") and path.endswith(".py") for path in entries):
-        if not any(check["id"] == "python:pytest" for check in checks):
-            checks.append(
-                {
-                    "id": "python:pytest",
-                    "argv": ["python", "-m", "pytest"],
-                    "basis": "tracked Python tests",
-                }
+    python_tests = [
+        path
+        for path in entries
+        if path.startswith("tests/") and path.endswith(".py")
+    ]
+    if python_tests:
+        if not any(check["id"] in {"python:pytest", "python:unittest"} for check in checks):
+            test_sources = [
+                objects.blob(repository_id, entries[path]["oid"]).decode("utf-8", "replace")
+                for path in python_tests
+            ]
+            uses_pytest = any(
+                line.strip().startswith(("import pytest", "from pytest "))
+                for source in test_sources
+                for line in source.splitlines()
             )
+            uses_unittest = any(
+                line.strip().startswith(("import unittest", "from unittest "))
+                for source in test_sources
+                for line in source.splitlines()
+            )
+            if uses_unittest and not uses_pytest:
+                checks.append(
+                    {
+                        "id": "python:unittest",
+                        "argv": ["python", "-m", "unittest", "discover", "-s", "tests"],
+                        "basis": "tracked unittest test modules",
+                    }
+                )
+            else:
+                checks.append(
+                    {
+                        "id": "python:pytest",
+                        "argv": ["python", "-m", "pytest"],
+                        "basis": "tracked Python tests",
+                    }
+                )
     if not checks:
         checks.append(
             {

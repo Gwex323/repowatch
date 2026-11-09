@@ -11,13 +11,13 @@ pnpm --dir frontend build
 backend/.venv/Scripts/python.exe -m repowatch.api --port 8765
 ```
 
-API 仅绑定 `127.0.0.1`，同源提供 `frontend/dist`。启动完成后浏览器通过 URL 片段接收一次引导凭证，前端立即移除片段；凭证不进入服务访问日志。API 不隐式迁移或启动 Worker，打开／刷新页面不启动任务。另一个终端可显式启动诊断 Worker：
+API 仅绑定 `127.0.0.1`，同源提供 `frontend/dist`。启动完成后浏览器通过 URL 片段接收一次引导凭证，前端立即移除片段；凭证不进入服务访问日志。API 不隐式迁移或启动 Worker，打开／刷新页面本身不领取重任务或发起模型请求；API 生命周期内的只读巡检见下方 P4 说明。另一个终端可显式启动 Worker：
 
 ```powershell
 backend/.venv/Scripts/python.exe -m repowatch.worker
 ```
 
-`--once` 只执行一次调度；Worker 先做异常对账。停止使用终端中断；浏览器关闭不等于 Worker 已停止。这是开发入口，Windows 安装启动器、服务联动停止和完整产品交付由 P6 实现。普通仓库任务仍需 P2 的工作区／扫描适配。
+`--once` 只执行一次调度；Worker 先做异常对账。停止使用终端中断；浏览器关闭不等于 Worker 已停止。这是开发入口，Windows 安装启动器、服务联动停止和完整产品交付由 P6 实现。普通仓库扫描、修复与返修由独立 Worker 执行；只读同步不替代其串行执行、预算和证据门槛。
 
 ## 会话与控制路由
 
@@ -35,13 +35,31 @@ backend/.venv/Scripts/python.exe -m repowatch.worker
 
 ## 验证入口
 
+### P4 持续同步与 PR 评审返修
+
+2026-11-09：API 生命周期管理单个只读同步循环，独立持久租约与 Worker 执行位分离。正式导入后的仓库默认活跃 2 小时、空闲 24 小时同步，最近变化回看为 7 天；可在仓库的“巡检与必要 CI 检查配置”调整。未结束任务、开放受管 PR 或回看内实际变化形成活跃判定；相同载荷不刷新变化时间。PR、CI、评审共用该频率，没有额外分钟级远端轮询。
+
+仓库“检查更新”调用 `POST /api/v1/repositories/{repository_id}/sync`，使用现有安全会话及稳定 `operation_id`；`GET` 同路径回读请求／完成序号、最后成功时间、目标 SHA、无变化／变化／失败及退避状态。配置保存使用 `POST .../sync/configure` 与独立策略修订。读取前的触发合并，读取中到达的新请求保留后续读取。暂停期间同步仍可保存变化并登记扫描，扫描等待恢复；不增加导入代次或重置预算，同版本已排队扫描可复用。
+
+Issue 列表按完整分页、远端 `updated_at` 水位、重叠窗口和周期全量复核读取；评论、PR、reviews、checks、statuses、分支及分支规则使用各自端点和独立验证器。单页 304 不结束完整查询，分支缓存与已确认 SHA 不对应时无条件重读。对象、修订、信号和事件原子保存；较旧／同时间戳冲突保留不确定性并重读，旧同步及旧目标配置不覆盖新状态。网络／限流失败保留成功记录，尊重退避，不自行调用模型或解除暂停。重启仅补偿一次到期仓库；活进程尚在时不因租约超时抢占，退出等待当前有界读取后关闭存储。
+
+任务详情显示受管 PR、Issue、代码验证及 CI 的独立事实，以及检查来源、对应 head／base／merge SHA 和 attempt。当前 base 以独立分支读取为准，PR 的历史 base 字段不能替代当前目标；merge 检查还须核对提交父节点包含当前 head 和 base。必要检查来自已确认的版本化配置及可读取的分支规则；来源未确认、缺失、pending、Fork 待批准、旧 SHA 或默认 skipped／neutral 均不算成功。只有明确策略才允许额外成功结论。示例必要检查：`[{"name":"tests","source":"123","kind":"check","ref":"head","accepted":["success"]}]`；`source` 为 GitHub App ID，传统 status 则填写发布者登录名。
+
+评审意见由原任务的 Worker 串行分析，保存对应提交、撤销／旧代码状态和范围依据。明确原范围内的意见自动排队；原批准内容未变时新增验收修订并关联原批准及不可变分析产物，不修改旧历史。扩展或歧义在任务详情展示意见、方案和验收差异，提供批准、要求修改、补充澄清、拒绝四个入口；旧决定不适用于新反馈。批准不会解除暂停或绕过扫描／证据门槛。
+
+返修抓取最新 PR head，在保留外部提交的前提下整合当前 base；冲突进入 `pr_merge_conflict` 等待，由用户在原分支处理后检查更新、重新分诊。复现基准与完整 PR 的当前 base 回归基准分别记录，仍需真实 Runner 和独审，更新同一个 PR并使用实际旧 head 的版本保护。发布前独立重读受管 PR 评审，期间的新意见使旧输入重新分诊。PR 合并、关闭未合并和 Issue 状态分别保存，不自动合并、重开或创建替代 PR。
+
+复跑入口：`test_github_sync.py`、`test_github_polling.py`、`test_pr_lifecycle.py`、`test_issue_context.py`、`test_publication.py` 和启用 `REPOWATCH_DOCKER_TESTS=1` 的 `test_repairs.py`；浏览器入口 `node experiments/p4-browser.mjs` 使用临时库、模拟 HTTP 和无头 Edge。端点契约参照 [GitHub Issue API](https://docs.github.com/en/rest/issues/issues)、[分支规则 API](https://docs.github.com/en/rest/repos/rules)和[分支保护 API](https://docs.github.com/en/rest/branches/branch-protection)。实际本轮结果以 [NOW](../context/NOW.md#证据入口与时效) 为准。
+
+真实 9.5 入口为 `experiments/p4-github-acceptance.py`，复用两套受控 P3 验收库、凭据引用、Issue／PR 与累计预算；显式区分迁移、评审、同步、返修、暂停及操作者终态，模型使用离线夹具。用户授权的 #16／#18 请求修改及原 PR 返修已完成；验收操作者合并 #16、关闭未合并的 #18，产品同步分别记录 `pr_merged`／`pr_closed_unmerged`。#18 的原分支冲突经用户授权解决并验证。两仓 CI policy 按用户确认无 required checks。范围与验证时效见 [NOW](../context/NOW.md)。入口不会自行决定重试或自动合并／关闭。
+
 ### P3 分诊与验收规范首批接入
 
 2026-11-06 接入 P3 分诊和修复协调器。Worker 对已确认 Issue 和选中的扫描候选进行宿主准入复核，再通过共享引擎的 `investigate` 模式读取输入、保存结构化分析及分诊结果。手动未选择、标签模式未命中或允许标签未配置的 Issue 不自动调用模型；明确选择仍不能覆盖他人 assignee、排除标签或敏感披露判断。初诊缺信息与敏感披露进入正常等待，不因此暂停全局队列。远端读取包含 Issue、完整分页评论、开放 PR 与 timeline 关联 PR 的描述和文件差异；占用及关系判断保留证据。当前仍有专项／真实 GitHub 验收缺口，不能据接口存在宣称整个 P3 通过。
 
 任务详情可查看分诊原因、证据及输入／准入修订，使用“请求接手并重新核验占用”保存意图；请求不会修改远端 assignee。分诊可生成待确认的方案与验收规范，用户也可保存新修订并明确批准。规范 JSON 包含 `objective` 和非空 `criteria` 列表；功能／重构包含 `plan`，纯重构另含 `structural_goal` 与 `behavior_preservation`。内容历史不可覆盖或删除，批准绑定输入、相关反馈、准入策略及目标配置；目标 SHA 单独变化不作废批准。上述版本变化后须重新绑定规范，普通批准不重新启用取消／排除任务，也不解除暂停或执行障碍。
 
-批准后返回原任务分诊，仍须核对当前准入及后续 Issue／PR、扫描、复现和发布门槛。多个独立目标须先收敛／拆分，不能靠批准原多目标列表合并交付。模型分析只说明信息与目标是否充分，不构成实际修改前失败／修改后通过证据。当前 schema 为 `0021_distillation_state`，现有开发数据库须在全部写者停止后显式迁移；测试只迁移临时数据，不隐式升级用户数据库。
+批准后返回原任务分诊，仍须核对当前准入及后续 Issue／PR、扫描、复现和发布门槛。多个独立目标须先收敛／拆分，不能靠批准原多目标列表合并交付。模型分析只说明信息与目标是否充分，不构成实际修改前失败／修改后通过证据。当前 schema 要求见[显式迁移](persistence.md#显式迁移与重启)，现有开发数据库须在全部写者停止后显式迁移；测试只迁移临时数据，不隐式升级用户数据库。
 
 专项测试为 `test_triage.py`、`test_formal_triage.py`、`test_acceptance_migration.py` 及任务／API／Worker 的关联回归。浏览器入口 `node experiments/p3-browser.mjs` 使用临时回环服务和 Edge，验证保存、批准、刷新持久化、输入变化失效、暂停可操作及读取不启动任务；报告位于 `.cache/p3-browser/`。SDK 测试使用模拟 HTTP，不代表真实付费调用或 GitHub 写入验收，最新结果见 [NOW](../context/NOW.md#证据入口与时效)。
 

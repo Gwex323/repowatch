@@ -192,6 +192,38 @@ class GitObjects:
         )
         return {"sha": commit, "tree_sha": tree_sha}
 
+    def integrate(self, identifier, base, head):
+        self.require_sha(base)
+        self.require_sha(head)
+        repository = self.repository(identifier)
+        ancestor = self.run(repository, "merge-base", base, head).decode().strip()
+        if ancestor == base:
+            return head
+        if ancestor == head:
+            return base
+        tree = (
+            self.run(repository, "merge-tree", "--write-tree", base, head).decode().splitlines()[0]
+        )
+        self.require_sha(tree)
+        return (
+            self.run(
+                repository,
+                "-c",
+                "user.name=RepoWatch",
+                "-c",
+                "user.email=repowatch@users.noreply.github.com",
+                "commit-tree",
+                tree,
+                "-p",
+                head,
+                "-p",
+                base,
+                input_bytes=b"RepoWatch: integrate current PR base\n",
+            )
+            .decode()
+            .strip()
+        )
+
     def entries(self, identifier, sha):
         self.require_sha(sha)
         raw = self.run(self.repository(identifier), "ls-tree", "-rz", "--full-tree", sha)

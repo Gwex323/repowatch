@@ -46,6 +46,8 @@ def test_issue_context_reads_all_comments_open_prs_and_merged_timeline_pr():
             body = {"id": 22, "number": 2, "state": "open"}
         elif path.endswith("/pulls/3"):
             body = {"id": 33, "number": 3, "state": "closed", "merged_at": "2026-11-06T00:00:00Z"}
+        elif path.endswith("/reviews"):
+            body = [{"id": 45, "state": "CHANGES_REQUESTED", "commit_id": "b" * 40}]
         else:
             raise AssertionError(path)
         return httpx.Response(200, json=body)
@@ -56,6 +58,10 @@ def test_issue_context_reads_all_comments_open_prs_and_merged_timeline_pr():
     assert result["complete"]
     assert [item["id"] for item in result["pull_requests"]] == [22, 33]
     assert calls.count("/repos/owner/repo/issues/1") == 2
+    managed = GitHubReadAdapter(transport=httpx.MockTransport(wire)).issue_context(
+        "owner", "repo", 1, managed_pr_id="22"
+    )
+    assert managed["pull_requests"][0]["reviews"][0]["id"] == 45
 
 
 def test_incomplete_relation_read_is_not_treated_as_no_pr():
@@ -264,7 +270,7 @@ def test_volatile_pr_fields_do_not_invalidate_feedback(kernel, monkeypatch):
     first = reader.read(token)
     facts["pull_requests"][0].update(mergeable=True, mergeable_state="clean")
     second = reader.read(token)
-    assert second["digest"] != first["digest"]
+    assert second["digest"] == first["digest"]
     with services.store.read() as records:
         current = records.one("tasks", id=task)
         assert current["mode"] == "implement"
