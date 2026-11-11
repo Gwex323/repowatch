@@ -127,11 +127,7 @@ def checks_for(objects, repository_id, manifest):
                     "basis": "pyproject.toml#tool.ruff",
                 }
             )
-    python_tests = [
-        path
-        for path in entries
-        if path.startswith("tests/") and path.endswith(".py")
-    ]
+    python_tests = [path for path in entries if path.startswith("tests/") and path.endswith(".py")]
     if python_tests:
         if not any(check["id"] in {"python:pytest", "python:unittest"} for check in checks):
             test_sources = [

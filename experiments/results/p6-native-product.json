@@ -1,0 +1,346 @@
+{
+  "verified_at": "2026-11-10T10:06:13.819367+00:00",
+  "passed": true,
+  "native_admitted": true,
+  "final_product_accepted": false,
+  "model": "deterministic_http_fixture",
+  "paid_model_calls": 0,
+  "sample": "native-python-cli",
+  "environment": "Windows x64, dedicated ordinary execution account, per-command AppContainer",
+  "runtime_id": "sha256:b0de0e27d4c2cfa045f466cbda32d01213887b6e6546fb0aa948399fd0adbeac",
+  "preparation": {
+    "sample": "native-python-cli",
+    "route": "direct",
+    "branch": "p6/acceptance-20261110-native-python-cli",
+    "base_sha": "3ad01922f99b337e3c4f514bf779195983bc09d6",
+    "tree_sha": "30db3a46cb22c0b3a34ef8d95d8fdc3c2fa90815",
+    "image": "sha256:b0de0e27d4c2cfa045f466cbda32d01213887b6e6546fb0aa948399fd0adbeac",
+    "prepared_by": "acceptance_operator",
+    "github_writes": true,
+    "fixture_files_sha256": "e13959b891985425cc4a65c51e01ab6085fdf3bef029d04398fbb8c87ea57362",
+    "execution_backend": "native"
+  },
+  "actual_pr": {
+    "id": "5239319627",
+    "number": 28,
+    "url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/28",
+    "base_ref": "p6/acceptance-20261110-native-python-cli",
+    "head_ref": "repowatch/issue-27-c07cee61-2c8",
+    "base_sha": "3ad01922f99b337e3c4f514bf779195983bc09d6",
+    "head_sha": "ff84ce7b73534877b781d74b5790260f442aab79",
+    "head_repository_id": "1447899115"
+  },
+  "product": {
+    "repository_id": "aa392fd5-e604-5bd1-afe7-9b09049454bf",
+    "candidate_id": "3ec2fea2-8289-54c1-a721-19602bcbf0a4",
+    "task_id": "c07cee61-2c89-57a5-ae64-2f8ef9cb0d76",
+    "issue_id": "6303856184",
+    "input": {
+      "assignees": [],
+      "body": "\n\n验收目标：\n[\"Adding 2 and 3 returns 5 through the supported interface\"]\n\n扫描候选：candidate:3ec2fea2-8289-54c1-a721-19602bcbf0a4\n\n<!-- repowatch-candidate:0c4e9e9c-a906-5833-a280-9ac6114204e6 -->",
+      "github_id": "6303856184",
+      "labels": [],
+      "number": 27,
+      "state": "open",
+      "title": "P6 native-python-cli: return the sum"
+    },
+    "task_state": "waiting",
+    "wait_reason": "pr_review",
+    "publication": {
+      "number": 28,
+      "pr_id": "5239319627",
+      "reason": "pr_review",
+      "sha": "ff84ce7b73534877b781d74b5790260f442aab79",
+      "state": "waiting",
+      "url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/28"
+    },
+    "bindings": [
+      {
+        "task_id": "c07cee61-2c89-57a5-ae64-2f8ef9cb0d76",
+        "issue_repository_id": "aa392fd5-e604-5bd1-afe7-9b09049454bf",
+        "issue_id": "6303856184",
+        "pr_repository_id": "1447899115",
+        "pr_id": "5239319627",
+        "state": "open"
+      }
+    ],
+    "frozen": {
+      "acceptance_revision": 2,
+      "admission_revision": 1,
+      "base_sha": "3ad01922f99b337e3c4f514bf779195983bc09d6",
+      "configuration_sha256": "4a30dc3defba2c8387692151968dade074a8a0445abd0f87fa8d7ffae82d1641",
+      "feedback_revision": 1,
+      "import_epoch": 1,
+      "input_revision": 2,
+      "manifest": [
+        {
+          "mode": "100644",
+          "path": "README.md",
+          "sha256": "237bf6d3e5485f7d4b9ee115f8ba7f475ed9c5be06fb1922bbec1d6e587cdf83",
+          "size": 50
+        },
+        {
+          "mode": "100644",
+          "path": "p6_python_cli.py",
+          "sha256": "fe58fb8b244cf7f4ec80083ab2dbe679fd408bc5ffeea143baf72f4e9cbf707d",
+          "size": 319
+        },
+        {
+          "mode": "100644",
+          "path": "tests/probe_p6.py",
+          "sha256": "69592e8b3dcadd87646c8cbebb406eb13347b3f520c27709bb49c2422026e91d",
+          "size": 130
+        },
+        {
+          "mode": "100644",
+          "path": "tests/test_sample.py",
+          "sha256": "965d051ac6ba45036be5b168500654a25bb0f902f61a3b3b36376fc0d02c2f3e",
+          "size": 574
+        }
+      ],
+      "manifest_sha256": "4393b63b8d168399018939f48813f78e248ecc65f69defc16bcbf8f0da0451f5",
+      "previous_head_sha": null,
+      "publication_head_sha": null,
+      "sha": "ff84ce7b73534877b781d74b5790260f442aab79",
+      "target_revision": 1,
+      "tree_sha": "d407aa3989d95f45ec3886c9b9a88e9018121a11"
+    },
+    "evidence": {
+      "artifact_ids": [
+        "d625ad36-607c-5dc7-9242-6b1ac8fa1497",
+        "1d29f37e-9ba8-57a4-b3d3-db56feac1084",
+        "8bcfc527-8075-5ae2-9fb5-5c4f3c217b6a",
+        "e6d4b959-0417-581f-88e3-99968105f3e2",
+        "08057f79-53c8-5625-a247-4e28a43158e1",
+        "50dc7dfc-0db9-5d92-995e-25de565b53e4"
+      ],
+      "base_probe": {
+        "argv": [
+          "python",
+          "-c",
+          "exec(open('tests/probe_p6.py').read())"
+        ],
+        "command_id": "d06ac2d14035449dbfe3e9a48d317851",
+        "control_stopped": false,
+        "elapsed_ms": 9304,
+        "exit_code": 1,
+        "image": "sha256:b0de0e27d4c2cfa045f466cbda32d01213887b6e6546fb0aa948399fd0adbeac",
+        "log_artifact_id": "d625ad36-607c-5dc7-9242-6b1ac8fa1497",
+        "log_sha256": "8bc206252a4e8a4a38d4d858543ebe1db82ed943a9f8211dc2e01bc7bd585ac8",
+        "log_truncated": false,
+        "manifest_sha256": "f6a3824c0eb08c3f26ad8ab4b73b643b390d4b4ca265f4f9a381083617e249fc",
+        "oom_killed": false,
+        "preparation": {
+          "declarations": [],
+          "gaps": [],
+          "steps": [],
+          "version": 1
+        },
+        "preparation_report": null,
+        "sha": "d2501a7ec0ec36f614e00cc5e4bb6f24aaab50d5",
+        "timed_out": false,
+        "timeout": 60,
+        "workspace_id": "repowatch-native-3b8fc8b6ee694607b193ca0ab3e26a53"
+      },
+      "behavior_base": null,
+      "behavior_candidate": null,
+      "candidate_probe": {
+        "argv": [
+          "python",
+          "-c",
+          "exec(open('tests/probe_p6.py').read())"
+        ],
+        "command_id": "298ec77a073e4dac99eebd712c4bc307",
+        "control_stopped": false,
+        "elapsed_ms": 7884,
+        "exit_code": 0,
+        "image": "sha256:b0de0e27d4c2cfa045f466cbda32d01213887b6e6546fb0aa948399fd0adbeac",
+        "log_artifact_id": "1d29f37e-9ba8-57a4-b3d3-db56feac1084",
+        "log_sha256": "14d66f80ceb2048ec7595e010cbc10d34a18c0dd89a61d474faa904368b17072",
+        "log_truncated": false,
+        "manifest_sha256": "c7bf74d12b852a631f8505c5ceb4f980f8f5302e1c636cd7a60fbfb4faaec101",
+        "oom_killed": false,
+        "preparation": {
+          "declarations": [],
+          "gaps": [],
+          "steps": [],
+          "version": 1
+        },
+        "preparation_report": null,
+        "sha": "ff84ce7b73534877b781d74b5790260f442aab79",
+        "timed_out": false,
+        "timeout": 60,
+        "workspace_id": "repowatch-native-3da868f84e6d4932945e7a3f8e7041aa"
+      },
+      "comparisons": [
+        {
+          "base": {
+            "counts": {},
+            "discovered": 0,
+            "failures": [
+              "(failures=1)"
+            ]
+          },
+          "candidate": {
+            "counts": {},
+            "discovered": 0,
+            "failures": []
+          },
+          "passed": true,
+          "reason": "baseline_not_worsened"
+        }
+      ],
+      "external_merge": null,
+      "passed": true,
+      "probe": {
+        "argv": [
+          "python",
+          "-c",
+          "exec(open('tests/probe_p6.py').read())"
+        ],
+        "behavior_argv": [],
+        "files": {
+          "tests/probe_p6.py": "from p6_python_cli import p6_cli_add\nif p6_cli_add(2, 3) != 5:\n    print('TARGET_BUG')\n    raise SystemExit(1)\nprint('TARGET_OK')\n"
+        },
+        "purpose": "Same sum probe on base and frozen candidate",
+        "target_failure": "TARGET_BUG",
+        "target_success": "TARGET_OK",
+        "timeout": 60
+      },
+      "probe_review_artifact_id": "e6d4b959-0417-581f-88e3-99968105f3e2",
+      "regression_base_sha": "3ad01922f99b337e3c4f514bf779195983bc09d6",
+      "reproduction_sha": "3ad01922f99b337e3c4f514bf779195983bc09d6",
+      "review": {
+        "findings": [],
+        "passed": true,
+        "probe_valid": true,
+        "rationale": "fixture reviewer inspected the real probe evidence",
+        "unrelated_failures": [],
+        "weakened_acceptance": false
+      },
+      "review_passed": true,
+      "review_run_id": "837f40ec-ac1a-4a2a-a3b1-0feb39a5b8a6"
+    },
+    "memory_states": [
+      "success"
+    ],
+    "budget": {
+      "owner_task_id": "0c4e9e9c-a906-5833-a280-9ac6114204e6",
+      "revision": 1310,
+      "authorization_revision": 2,
+      "initial_limits": {
+        "active_ms": 5000000,
+        "model_calls": 80,
+        "recovery_rounds": 6,
+        "repair_rounds": 6,
+        "tokens": 2000000
+      },
+      "approved_progress_ids": [],
+      "limits": {
+        "active_ms": 5000000,
+        "model_calls": 80,
+        "recovery_rounds": 6,
+        "repair_rounds": 6,
+        "tokens": 2000000
+      },
+      "used": {
+        "active_ms": 674744,
+        "model_calls": 47,
+        "tokens": 376,
+        "repair_rounds": 4,
+        "recovery_rounds": 0
+      },
+      "reserved": {
+        "active_ms": 0,
+        "model_calls": 0,
+        "tokens": 0,
+        "repair_rounds": 0,
+        "recovery_rounds": 0
+      },
+      "available": {
+        "active_ms": 4325256,
+        "model_calls": 33,
+        "tokens": 1999624,
+        "repair_rounds": 2,
+        "recovery_rounds": 6
+      },
+      "status": "available",
+      "warning_percent": 80,
+      "warning": false
+    }
+  },
+  "adaptation": {
+    "candidate_sha": "ff84ce7b73534877b781d74b5790260f442aab79",
+    "runtime_id": "sha256:b0de0e27d4c2cfa045f466cbda32d01213887b6e6546fb0aa948399fd0adbeac",
+    "build_exit_code": 0,
+    "cli_exit_code": 0,
+    "cli_stdout": "5",
+    "all_product_commands_native": true,
+    "product_command_count": 19,
+    "independent_operator_build_and_cli": true
+  },
+  "installed_wheel": true,
+  "global_paused_after_acceptance": true,
+  "operator_actions": [
+    "prepare isolated sample branch",
+    "prefix new PR title with P6",
+    "independent native build and CLI run",
+    "Evidence-bound finite retries in the original task and ledger; cumulative limits and all earlier failures retained"
+  ],
+  "private_report": ".repowatch/p6-native-python-cli/report.json",
+  "private_report_sha256": "4c835661eb8e4d1471be86529aeb2a16bb70989d6285bab94506f6c215839e98",
+  "limitations": [
+    "Pinned CPython stdlib CLI only; third-party native dependency preparation unavailable",
+    "Fixture models do not demonstrate paid model repair efficacy",
+    "No merge or release"
+  ],
+  "installed_package": {
+    "wheel": ".cache/p6-native-ui-release/repowatch-0.1.0.dev0-py3-none-any.whl",
+    "sha256": "bb75db65092c50bff8ca9d1ba42da0c7532cad224d2ff5056d07530d6c887236",
+    "source_modules_and_native_assets_match": true,
+    "checked_source_files": 122
+  },
+  "installed_browser": {
+    "private_report": ".cache/p6-browser/1794305153554/report.json",
+    "checks": 9,
+    "scope": "Real installed operations UI; positive admission display uses an explicitly marked API-state fixture, real native admission verified separately"
+  },
+  "installed_operations": {
+    "private_report": ".cache/p6-native-installed-operations/503ea60c436849789a6d35db241c3d7f/report.json",
+    "checks": 12
+  },
+  "prior_failures": [
+    {
+      "phase": "response_publication",
+      "fix": "Atomic replacement uses an explicit temporary backup on Windows PowerShell",
+      "private_log": ".cache/p6-native-product.log"
+    },
+    {
+      "phase": "native_source_step_estimate",
+      "fix": "Native-only source read reserves bounded 30000ms rather than 1000ms; measured 2284ms retained, no cumulative increase",
+      "private_log": ".cache/p6-native-product-v3.log"
+    },
+    {
+      "phase": "freeze_role_metadata",
+      "fix": "Freeze demotes the native metadata together with the registered role",
+      "private_log": ".cache/p6-native-product-v4.log"
+    },
+    {
+      "phase": "stale_frozen_reference",
+      "fix": "Coordinator reloads the registered read-only workspace after freeze",
+      "private_log": ".cache/p6-native-product-v5.log"
+    },
+    {
+      "phase": "completed_goal_signal",
+      "fix": "Host-verified successful repair supplies existing goal_completed contract; persistent guard unchanged",
+      "private_log": ".cache/p6-native-product-v6.log"
+    }
+  ],
+  "session_lifecycle": {
+    "completed_and_stopped_cleanly": true,
+    "all_command_records_stopped": true,
+    "current_live_admission": false,
+    "reason": "The finite acceptance host was stopped after verification; future native execution requires fresh live admission"
+  },
+  "implementation_and_controlled_acceptance_complete": true
+}

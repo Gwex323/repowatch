@@ -10,6 +10,39 @@ from repowatch.domain.task_records import canonical_json
 from repowatch.worker.service import Worker
 
 
+def test_worker_records_intentional_pause_as_safe_wait(api):
+    _, _, services, _ = api
+    repository = services.tasks.register_repository("p6-safe-stop", admission_mode="manual")
+    task = services.tasks.ensure_task(repository, "p6-safe-stop", now=0)
+    services.budgets.authorize_initial(
+        "p6-budget",
+        task,
+        BudgetAmounts(
+            active_ms=1000000, model_calls=10, tokens=10000, repair_rounds=5, recovery_rounds=5
+        ),
+        expected_revision=1,
+        reason="controlled stop",
+        now=0,
+    )
+    services.queue.set_pause(False, now=0)
+
+    def pause(token):
+        with services.store.read() as records:
+            revision = records.one("global_control", singleton=1)["revision"]
+        services.control.pause("p6-stop", expected_revision=revision, now=0)
+        raise PermissionError("intentional service stop")
+
+    result = Worker(services, plan_factory=pause).run_once()
+    assert result["reason"] == "safe_stop"
+    with services.store.read() as records:
+        assert records.one("tasks", id=task)["wait_reason"] == "safe_stop"
+        assert records.one("execution_lease", singleton=1)["holder_run_id"] is None
+        assert not records.find("block_reasons", resolved=0)
+        run = records.one("runs", id=result["run_id"])
+        assert run["state"] == "suspended"
+    assert services.recovery.report(result["run_id"], now=0)["state"] == "safe_wait"
+
+
 def test_confirmed_receipt_request_only_reconciles_without_repair_or_scan(api, monkeypatch):
     _, _, services, _ = api
     repository = services.tasks.register_repository("receipt-worker", admission_mode="all_bugs")

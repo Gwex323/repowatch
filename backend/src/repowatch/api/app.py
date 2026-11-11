@@ -44,7 +44,7 @@ def create_app(services=None, *, sessions: LocalSessions | None = None, static_d
 
     @app.get("/api/v1/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "stage": "p1" if services else "p0", "version": __version__}
+        return {"status": "ok", "stage": "p6" if services else "p0", "version": __version__}
 
     if services is None:
         return app
@@ -93,6 +93,9 @@ def create_app(services=None, *, sessions: LocalSessions | None = None, static_d
         for error in errors:
             app.add_exception_handler(error, handler(code, status))
     app.include_router(routes(services))
+    from repowatch.api.operations import operation_routes
+
+    app.include_router(operation_routes(services))
     if static_dir is not None:
         app.mount("/", FrontendFiles(directory=static_dir, html=True), name="frontend")
 

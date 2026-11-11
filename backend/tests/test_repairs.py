@@ -31,6 +31,7 @@ from repowatch.worker.repairs import RepairCoordinator
         ("stuck", "bug"),
         ("stuck_memory_conflict", "bug"),
         ("sdk", "bug"),
+        ("sdk_node", "bug"),
         ("supplement", "bug"),
         ("review_retry", "bug"),
         ("renew", "bug"),
@@ -46,7 +47,7 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
     services = kernel
     bind(services)
     bind(services, "reviewer")
-    if external == "sdk":
+    if external in {"sdk", "sdk_node"}:
         diagnose(services, "processor")
         diagnose(services, "reviewer")
     services.clock = lambda: 0
@@ -92,6 +93,26 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
     calls = []
     supplement_requested = False
     candidate_reviews = 0
+    source_name = "calc.mjs" if external == "sdk_node" else "calc.py"
+    fixed_source = (
+        "export function add(left, right) { return left + right; }\n"
+        if external == "sdk_node"
+        else "def add(left, right):\n return left + right\n"
+    )
+    probe_name = "tests/probe.mjs" if external == "sdk_node" else "tests/probe.py"
+    probe_body = (
+        "import {add} from '../calc.mjs';\n"
+        "if (add(2,3) !== 5) { console.log('TARGET_BUG'); process.exit(1); }\n"
+        "console.log('TARGET_OK');\n"
+        if external == "sdk_node"
+        else "from calc import add\nif add(2,3) != 5:\n print('TARGET_BUG')\n"
+        " raise SystemExit(1)\nprint('TARGET_OK')\n"
+    )
+    probe_argv = (
+        ["node", probe_name]
+        if external == "sdk_node"
+        else ["python", "-c", "exec(open('tests/probe.py').read())"]
+    )
 
     class Runtime:
         def run(self, token, plan):
@@ -177,7 +198,7 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
             raise ConflictError("controlled memory constraint failure")
 
         monkeypatch.setattr(RepositoryMemory, "record_attempt", reject_memory)
-    if external == "sdk":
+    if external in {"sdk", "sdk_node"}:
 
         def wire(request):
             body = json.loads(request.content)
@@ -193,14 +214,14 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
             if not results:
                 calls.append((mode, envelope["context"]["run_id"]))
                 name = "read_evidence" if mode == "review" else "read_source"
-                arguments = {} if mode == "review" else {"path": "calc.py"}
+                arguments = {} if mode == "review" else {"path": source_name}
             elif len(results) == 1 and mode in {"reproduce", "implement"}:
                 if mode == "implement":
                     name, arguments = (
                         "write_source",
                         {
-                            "path": "calc.py",
-                            "content": "def add(left, right):\n return left + right\n",
+                            "path": source_name,
+                            "content": fixed_source,
                         },
                     )
                 else:
@@ -208,15 +229,8 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
                         "write_analysis",
                         {
                             "plan": {
-                                "files": {
-                                    "tests/probe.py": (
-                                        "from calc import add\n"
-                                        "if add(2,3) != 5:\n print('TARGET_BUG')\n"
-                                        " raise SystemExit(1)\n"
-                                        "print('TARGET_OK')\n"
-                                    )
-                                },
-                                "argv": ["python", "-c", "exec(open('tests/probe.py').read())"],
+                                "files": {probe_name: probe_body},
+                                "argv": probe_argv,
                                 "target_failure": "TARGET_BUG",
                                 "target_success": "TARGET_OK",
                                 "purpose": "sum regression",
@@ -285,6 +299,8 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
     fixture = create_fixture(tmp_path / "git")
     original = coordinator.objects.import_bundle(repo, fixture["bundle"])
     implementation = b"def add(left, right):\n return left - right\n"
+    if external == "sdk_node":
+        implementation = b"export function add(left, right) { return left - right; }\n"
     if kind == "refactor":
         implementation = b"def add(left, right):\n return sum([left, right])\n"
         original_run = Runtime.run
@@ -327,7 +343,7 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
     base = coordinator.objects.commit_files(
         repo,
         original,
-        {"calc.py": ("100644", implementation)},
+        {source_name: ("100644", implementation)},
         message="fixture",
     )
     remote_head = None
@@ -380,7 +396,13 @@ def test_real_docker_repair_probe_freeze_review_and_evidence(
             {
                 "mode": "implement",
                 "configuration_json": canonical_json(
-                    {"workspace_image": "python:3.13-slim-bookworm"}
+                    {
+                        "workspace_image": (
+                            "node:24-bookworm-slim"
+                            if external == "sdk_node"
+                            else "python:3.13-slim-bookworm"
+                        )
+                    }
                 ),
             },
         )

@@ -7,6 +7,7 @@ from repowatch.api.host import HostServices
 from repowatch.application.credentials import CredentialError
 from repowatch.application.storage import StorageError
 from repowatch.configuration import StorageSettings
+from repowatch.security import DEFAULT_REDACTOR, install_log_redaction
 from repowatch.worker.service import Worker
 
 
@@ -14,18 +15,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="RepoWatch 串行 Worker；不会隐式初始化数据库")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--stop-file", type=Path)
     args = parser.parse_args()
     services = None
+    install_log_redaction()
     try:
         services = HostServices(
             StorageSettings(args.data_dir) if args.data_dir else StorageSettings.from_environment()
         )
         services.reconcile_startup()
         worker = Worker(services)
-        while True:
+        while not (args.stop_file and args.stop_file.exists()):
             result = worker.run_once()
             if result["state"] != "idle" or args.once:
-                print(json.dumps(result, ensure_ascii=False), flush=True)
+                print(json.dumps(DEFAULT_REDACTOR.clean(result), ensure_ascii=False), flush=True)
             if args.once:
                 break
             if result["state"] == "reconciliation_required":

@@ -9,6 +9,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 from repowatch.application.storage import SchemaMismatch
 from repowatch.configuration import StorageSettings
+from repowatch.operations.locks import data_lock
 
 CHECKPOINT_PACKAGE = "langgraph-checkpoint-sqlite"
 
@@ -40,6 +41,16 @@ class PreparedSqliteSaver(SqliteSaver):
 
 @contextmanager
 def checkpoint_store(settings: StorageSettings) -> Iterator[SqliteSaver]:
+    if not settings.checkpoint_database.is_file():
+        raise SchemaMismatch("检查点数据库未初始化，请在服务停写后执行迁移")
+    with data_lock(settings, "services"):
+        with data_lock(settings):
+            with _checkpoint_store(settings) as saver:
+                yield saver
+
+
+@contextmanager
+def _checkpoint_store(settings: StorageSettings) -> Iterator[SqliteSaver]:
     if not settings.checkpoint_database.is_file():
         raise SchemaMismatch("检查点数据库未初始化，请在服务停写后执行迁移")
     uri = settings.checkpoint_database.as_uri() + "?mode=rw"

@@ -1,19 +1,21 @@
 # 当前状态与接续
 
-核验日期：2026-11-09。P4 为 13／13；P5 的 10.1—10.9 实现及受控阶段验收已完成，为 9／9，整体任务 78／89。分支 `feature/p5-memory-retrieval` 保留前置嵌入复评及 P5 改动，尚未提交或推送。P5 的正式 SDK、SQLite／FTS／sqlite-vec、本地 CPU 资产、Docker 失败链和浏览器有实测；供应商 HTTP 使用确定性夹具，未证明真实模型提效。P6、真实付费模型效果和最终用户验收仍未完成。全量基线与最后补丁专项的区别见下方，不宣称最后补丁后重新全量通过。
+技术验收核验日期：2026-11-10。P4 为 13／13；P5 为 9／9；P6 实施与受控技术验收已完成 11／11，整体任务 89／89。P6 实现见 [P6 分支](https://github.com/Gwex323/repowatch/tree/feature/p6-local-operations)，基于 P5 提交 `bd92689`。默认 Docker 的四类 Python／JS／TS Web／CLI 样本和专用普通账户的固定 CPython 原生 CLI 完整链路均有真实 Git／GitHub／执行证据；原生样本为 Issue #27→PR #28。模型继续夹具、付费调用为 0。最终安装运维 12 项及 Edge 9 项通过；临时原生宿主已清洁停止，资格 API 已请求停止并核实不再监听，五套 P6 验收库保持暂停。最终用户签收与发布另行记录，当前 `final_product_accepted=false`。
 
 ## 当前目标与进展
 
 - P0 与全部 P1 任务已完成。P1 提供正式串行执行位、累计预算和有限续期、实际命令监督、显式恢复、角色能力／有限重试、回环会话／API／UI、持久无进展检测及 GitHub 只读来源接口。E1 费用仍待按账单核实。P0 的对象交接、恢复／调度及编码选型结论沿用[门槛汇总](../development/p0-summary.md)和[编码资产评测](../development/embedding-evaluation.md)，不替代后续真实仓库验收。
 - 需求与最终架构已有基线、实施契约和 ADR，来源路由见 [项目索引](../../PROJECT_INDEX.md)。本次不重启需求访谈。
-- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 78／89；P3—P5 阶段验收通过，本变更继续保留至 P6 最终验收和归档。
-- 开发安装见[开发入口](../development/README.md)，P5 入口与边界见[记忆生命周期与检索](../development/memory.md)，P1 引擎验收见[运行验收](../development/runtime.md#复跑与实验映射)。当前代码要求 schema `0026_memory_lifecycle`，本轮只迁移临时测试库；原有两套受控 GitHub 验收库未升级，用户数据库未迁移。P5 未调用付费模型、写入 GitHub 或执行最终产品用户验收。
+- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 89／89；P0—P6 实施与受控技术验收已闭合，本变更保留供复核、提交及后续明确授权的用户验收／归档。
+- 开发安装见[开发入口](../development/README.md)，P6 入口见[本地安装与运维](../development/local-operations.md)，P5 见[记忆生命周期与检索](../development/memory.md)。当前代码要求 schema `0027_local_operations`，本轮仅初始化新的 P6 专用测试库；原有两套 P3／P4 GitHub 验收库未升级，用户数据库未迁移。已按授权在两座既有 sandbox 新增 P6 专用分支与测试 Issue／PR，未调用付费模型。
 - 定时、启动补偿及人工“检查更新”已接入目标分支 SHA 读取和版本补扫；重复目标观测或回到已排队版本时复用相应扫描、保留原预算和导入代次。PR／CI／评审按来源与版本保存，范围变化通过界面确认，返修保留外部 head 并对当前 base 重验；当前验收证据见下方。
 - 最新决定：本地扫描缺陷先完整查重再创建或关联 GitHub Issue；外部开放 PR 同问题等待、无关继续、关系不明请求用户判断。P3 已接入这些入口及人工决定持久回读，远端 PR／评论变化会递增反馈并重新分诊。已合并 PR 须验证提交进入当前目标历史并运行真实探针，已解决记为 `externally_resolved`，目标仍失败则以当前版本继续验证；不会凭 `merged` 自证解决。
-- 最新循环与预算决定：按真实产物检测无进展及振荡；复杂任务有进展但预计额度不足时，耗尽前正常等待用户批准有限追加，账本与检测历史不清零；已耗尽／无进展等仍全局阻塞且不因加额自动恢复。初值与恢复条件见[实施契约 §3](../implementation-contracts.md#无进展检测)。预算、检测、UI 和正式图集成已完成受控验收；真实扫描／修复事实生产及生产样本阈值校准由后续适配补齐。
-- 最新准入与交付决定：仓库三种准入模式及默认值、六类分诊、他人占用／敏感排除、默认不 assign／评论而可启用认领评论、人工优先级与自动严重程度／老化、相关输入变化重分诊已明确；受管 Issue／PR 双向生命周期唯一、返修原 PR、关闭不新建，外部 PR 作为观测保存。权威规则见[准入契约](../implementation-contracts.md#issue-准入与分诊)及[一一对应契约](../implementation-contracts.md#issue-与-pr-一一对应)，仍待产品实施验证。
+- 最新循环与预算决定：按真实产物检测无进展及振荡；复杂任务有进展但预计额度不足时，耗尽前正常等待用户批准有限追加，账本与检测历史不清零；已耗尽／无进展等仍全局阻塞且不因加额自动恢复。初值与恢复条件见[实施契约 §3](../implementation-contracts.md#无进展检测)。预算、检测、UI 和正式图集成已完成受控验收；真实扫描／修复事实生产已有受控样本，生产泛化及阈值校准仍待核实。
+- 最新准入与交付决定：仓库三种准入模式及默认值、六类分诊、他人占用／敏感排除、默认不 assign／评论而可启用认领评论、人工优先级与自动严重程度／老化、相关输入变化重分诊已明确；受管 Issue／PR 双向生命周期唯一、返修原 PR、关闭不新建，外部 PR 作为观测保存。权威规则见[准入契约](../implementation-contracts.md#issue-准入与分诊)及[一一对应契约](../implementation-contracts.md#issue-与-pr-一一对应)；实现和阶段验收见 tasks 及下方证据。
 
 ## 阻塞与待核实
+
+- P6 当前没有待处理的实现或受控技术验收阻塞。11.3 已有独立原生样本及隔离／拒绝证据，12.4 的新安装、支持说明和证据交接齐备。真实付费模型效果、未过门槛的默认语义选型、任意私有依赖及缺失 LFS／子模块内容不从本轮夹具验收推断为受支持；最终用户签收与发布另行决定。
 
 - P4 已无待处理的验收阻塞。PR #18 的 `tests/probe.py` 双方新增冲突经用户授权在隔离工作区解决，保留乘法与减法检查；合并提交 `8fb5d5efa7b3b9890ef33a3ba708ad638f224528` 更新原分支，产品随后完成返修。
 
@@ -21,19 +23,30 @@
 
 
 
-- 用户已授权 P4 开发、嵌入复评／锁定及在新分支实施 P5；当前分支 `feature/p5-memory-retrieval`，保留原有未跟踪临时目录。P3 的 `Gwex323/repowatch-p3-sandbox`（ID `1447899115`）及第二个账户 Fork `gwx541/repowatch-p3-sandbox`（ID `1447913051`）已完成专用验收。2026-11-06 RepoWatch 产品真实完成直接路径 Issue #15→PR #16 与 Fork 路径 Issue #17→PR #18，身份、base/head ref 与 SHA 匹配，两条发布意图均为 `confirmed`；模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。此前 Issue #1／#3、PR #2／#4 为人工 API 驱动的仓库准备对象。沙箱内外认证可见性不同，不代表凭据失效。
+- 用户已授权 P6 全阶段代码实施及必要验证；当前分支 `feature/p6-local-operations`，P5 已提交为 `bd92689`，保留原有未跟踪临时目录。P3 的 `Gwex323/repowatch-p3-sandbox`（ID `1447899115`）及第二个账户 Fork `gwx541/repowatch-p3-sandbox`（ID `1447913051`）已完成专用验收。2026-11-06 RepoWatch 产品真实完成直接路径 Issue #15→PR #16 与 Fork 路径 Issue #17→PR #18，身份、base/head ref 与 SHA 匹配，两条发布意图均为 `confirmed`；模型使用确定性夹具，Docker、Git 与 GitHub 写入为真实。此前 Issue #1／#3、PR #2／#4 为人工 API 驱动的仓库准备对象。沙箱内外认证可见性不同，不代表凭据失效。
 - Docker Desktop 此前停止，首次重跑为 `466 passed, 4 failed, 1 skipped`；四项均因引擎不可用。启动已安装 Docker 后容器专项 `15 passed`，后续全套 `491 passed, 1 skipped`。沙箱内 TestClient 挂起在沙箱外基础测试 `2 passed` 后解除；这些环境失败不再作为代码阻塞。最终证据防伪／原 PR 更新等后续修改的最新报告见下方，不沿用旧全量宣称最终冻结通过。
-- P0 六项关键切片均已通过，P1 已放行；费用账单、完整 E11 安装／启停／交付链路、LFS 实体与子模块对象仍未完成，含这些内容的仓库保持阻塞。2026-11-09 已用 8 条真实远端 Issue／PR 和 8 条查询复评：三候选中文 recall@3 均为 0.50、代码均为 1.00，未过原门槛，当前无默认语义模型，保留关键词降级路线。可选编码依赖组及传递依赖、模型 revision 和逐文件摘要已锁定并离线验证；生产泛化仍待核实。权威结果及复跑见[编码资产复评](../development/embedding-evaluation.md#真实-issuepr-复评与资产锁定)。
-- P1 已无需要人工介入的开发阻塞。普通仓库执行需 P2 的身份／工作区／Runner／扫描接入；本轮只读 GitHub 通过 HTTP 夹具验证，未访问真实仓库。P1 通过不代表真实修复发布、完整产品部署或最终用户验收通过。
+- P0 六项关键切片均已通过，P1 已放行；费用账单仍待核实，最终用户签收／发布尚未执行；LFS 实体／子模块内容缺失的仓库继续阻塞。E11 的安装启停、默认 Docker 样本及原生受支持样本已有 P6 证据；最终用户签收和发布尚未执行。2026-11-09 已用 8 条真实远端 Issue／PR 和 8 条查询复评：三候选中文 recall@3 均为 0.50、代码均为 1.00，未过原门槛，当前无默认语义模型，保留关键词降级路线。可选编码依赖组及传递依赖、模型 revision 和逐文件摘要已锁定并离线验证；生产泛化仍待核实。权威结果及复跑见[编码资产复评](../development/embedding-evaluation.md#真实-issuepr-复评与资产锁定)。
+- P1 已无需要人工介入的开发阻塞。普通仓库执行需 P2 的身份／工作区／Runner／扫描接入；P1 当时的只读 GitHub 通过 HTTP 夹具验证，未访问真实仓库；后续真实仓库链路见 P3／P4／P6 证据。P1 的历史通过不单独代表最终用户验收。
 - 此前 3.3 的凭据预检阻塞已解除：用户完成真实复测，新报告配置摘要匹配，8／8 通过，23 次请求全部 HTTP 200；费用仍待核实。其后 P1 集成已完成，未重复执行付费复测，证据见[P1 供应商](../development/providers.md#当前验证与真实-e1-复测)。
 
 ## 下一步
 
-1. P5 受控阶段已完成；下一阶段为 P6 本地产品化和最终集成验收，按后续授权推进。语义默认模型仍未过真实语料选型门槛，保持关键词降级；CPU 向量适配、版本化索引及受控 E10／E12／E16 已验收，不能把这些结果说成生产召回或真实模型收益已通过。
-2. 仅使用 `Gwex323/repowatch-p3-sandbox` 与 `gwx541/repowatch-p3-sandbox` 现有 Issue #15／#17、PR #16／#18 作为本次受控远端输入；保留其他对象，不扩展写入范围。重复的中间测试 Issue #5—#12 已关闭。
-3. 完整安装启停、备份、产品级故障集及真实付费修复发布仍按 P6 和对应阶段验收，不提前标记最终产品完成。
+1. 按[最终安装／支持手册](../development/local-operations.md)进行最终用户验收。用户已授权将 P6 分支合入项目 `main`，合并结果以 GitHub 项目 PR 为准；OpenSpec 归档与发布另行决定。
+2. 保留 P6 PR #20／#22／#25／#26／#28 开放供检查，五套新验收库全局暂停；不改原 P3／P4 对象或自动合并。原生宿主已清洁停止，资格 API 已确认无监听，RepoWatchRunner 命令窗口可关闭；未来原生任务需重新启动并通过实时准入。
+3. 最终用户签收、真实模型效果及后续发布分别记录。模型本轮继续夹具，语义默认模型仍未过真实中文门槛，保留关键词降级；受控 E10／E12／E16 不证明生产收益。
 
 ## 证据入口与时效
+
+- 2026-11-10 22:16（UTC+8） 追加交接复核完成：本次自动审批通过，已只读核对 P6 PR #20／#22／#25／#26／#28，均开放且未合并，PR／双方仓库身份、base ref 和 head SHA 与已验证候选一致；五套 P6 验收库均暂停，无活动 Run 或未解决阻塞。报告 `.cache/p6-native-final-remote-review.json`。此前额度不足的未执行记录保留于状态报告；本次无 GitHub 写入或模型调用。
+- 2026-11-10 原生资格与产品验收：[隔离登记](../../experiments/results/p6-native-preflight.json)和[独立完整样本](../../experiments/results/p6-native-product.json)。专用账户 19 项隔离检查通过，包含 API 前后 401、假凭据读取错误 5、网络有界超时及宿主崩溃后活动成员 3→0；不把有界超时写为明确拒绝。实际产品 19 条命令均为原生且已核实停止，Issue #27→PR #28，候选 `ff84ce7b73534877b781d74b5790260f442aab79` 编译／CLI 输出 5、独审及成功记忆通过。旧失败、有限恢复窗口和累计账本保留，未追加总预算。
+- 2026-11-10 当前回归：全后端基线 `740 passed, 3 skipped in 1638.81s`（`.cache/p6-native-full.xml`）。对象交接随后单独补跑 `1 passed`，余两项真实编码资产按模型夹具约定未启用。最后原生冻结／引用及终态补丁分别有原生套件 51 项、持久进展／调用方 20 项、真实 Docker 普通 Bug／SDK 2 项及实时能力 API 5 项通过；它们有重叠，未在最后补丁后再次全量。最终 wheel 摘要 `bb75db65092c50bff8ca9d1ba42da0c7532cad224d2ff5056d07530d6c887236`，122 个源码模块／原生资源与源码一致；全新离线安装运维 12 项及 Edge 9 项通过，后者的准入正向显示使用明确标记的 API 状态夹具，真实准入另有实际宿主核验。报告入口见独立样本和逐规格登记。
+- 2026-11-10 P6 完整适配：[四类样本证据](../../experiments/results/p6-adaptation.json)、[复跑入口](../../experiments/p6-github-acceptance.py)、[适配边界及操作](../development/local-operations.md#首批适配样本与复跑)。真实产品执行 Python CLI Issue #19→PR #20、Python Web Fork #21→#22、JavaScript CLI #23→#25、TypeScript Web Fork #24→#26；四份候选构建／实际运行通过，两份 Web Edge 各 4 项通过。准备器仅创建独立样本分支，产品创建 Issue／PR，操作者确认回执后补 P6 PR 标题前缀；模型为 HTTP 夹具，付费调用为 0，没有合并或发布。TS 链路从已安装 wheel 执行，反馈修复后新装最终 wheel 续跑通过，预算／失败历史保留。
+- 2026-11-10 反馈补丁：真实 TS 验收暴露 GitHub 元数据重复进入反馈上下文超过 100000 单步上限；修复只投影 GitHub 传输元数据，原始反馈及内容摘要、身份／SHA／评审／diff／CI 保留，自定义来源不裁剪，不抬高上限。正式 SDK／记忆生命周期／复核／Worker／验收守卫 `65 passed in 77.63s`（`.cache/p6-feedback-final.xml`），其后最新夹具类型／守卫专项 `11 passed in 2.97s`（`.cache/p6-adaptation-unit.xml`），后者部分重叠，不求和冒充独立数量。首次新回归夹具有 HTTP 请求解析错误，修正后通过；TS 后续另修正反馈 summary 夹具类型。该反馈补丁当时未再跑完整全后端；随后原生接入的 740 项全量基线及最后定向回归见上方。Ruff、前端类型／生产构建、锁定离线打包／新安装均通过。最终 wheel 新环境离线安装 73 项依赖，本地安装运维 12 项复验报告 `.cache/p6-installed-feedback-acceptance/e355290920ab4fcebb737a094bca169a/report.json`。
+- 2026-11-10 原生接入前只读复核：四份 P6 PR 仍开放且身份／head SHA 匹配，四套新测试数据全局暂停且无未解决阻塞；安装包反馈实现与源码摘要一致，6 份直接相关文档的 126 个本地链接／锚点通过，OpenSpec strict 和差异检查通过。报告 `.cache/p6-final-review.json`；逐规格登记合并四个不同时点报告后为 695 个不同用例，不能视为最后补丁后的新一次全量运行。
+- 2026-11-09 P6：显式开启真实 Docker、对象交接及离线 CPU 资产的全后端 `674 passed in 1210.88s`、无跳过（`.cache/p6-full.xml`）。其后恢复核对补丁的控制／发布／PR／运维关联为 `85 passed in 111.20s`（`.cache/p6-restore-final.xml`），拒绝缺凭据、身份冲突、多个匹配、旧报告及通用确认绕过，不重发远端写请求；未在该补丁后再次完整全后端。三份原有文件另作纯格式修正，Ruff 检查／格式、OpenSpec strict、前端类型／Vite 构建及差异检查通过。[证据登记](../../experiments/results/p6-acceptance.json)关联 11 份规格／207 个场景及 E1—E20，两个报告合并有 682 个不同用例；模块关联不宣称每个场景独立执行或最终产品通过。
+- 2026-11-09 P6 浏览器：P1—P6 六组 Edge 分别为 12／7／10／7／10／8 项通过。P1—P3 证据分别位于 `.cache/p1-browser/1794235552757/`、`.cache/p2-browser/1794235554051/`、`.cache/p3-browser/1794235550404/`；P4／P5 报告为 `.cache/p4-browser/1794235550769/report.json`、`.cache/p5-browser/1794235551745/report.json`。P6 最终恢复核对 UI 为 `.cache/p6-browser/1794236197002/report.json`；使用最终安装 wheel 的 8 项报告为 `.cache/p6-browser/1794236783112/report.json`。覆盖人工入口、暂停、回读、过期／不安全操作拒绝、PR GitHub 跳转，以及备份、清理、恢复核对和关闭浏览器保留服务，未调用外部模型。
+- 2026-11-09 P6 安装：最终 wheel 包含生产前端、迁移和资产清单；独立新虚拟环境离线按锁定清单安装 73 项依赖，安装解释器的 12 项迁移／备份／恢复／只读核对／启停／同源资源／认证／停后迁移通过，报告 `.cache/p6-installed-acceptance/bdaa930a326046619b7e7a9f891a96e7/report.json`。首次离线安装因缓存缺少 Windows wheel 明确失败，后续准备依赖并再次离线安装成功；未修改全局工具或用户安装。Node 真实 Docker＋正式 SDK 修复专项另为 1 通过（`.cache/p6-node-repair.xml`，模型 HTTP 夹具、发布止于夹具门口）。本轮未调用付费模型、写 GitHub、迁移原受控验收库或用户数据库、清理旧临时目录、提交／推送或发布。
+- P6 全量中的 E12 复跑原始报告保留于 `.cache/p6-e12-memory.json`；测试写出的耗时没有覆盖已登记的 P5 历史报告。两组仍各 30／30 验证通过、60 次夹具调用，不宣称真实模型收益。
 
 - 2026-11-09 P5 五项评审修复：来源排除／取消约束维护任务全流程，重新启用不恢复撤销预算；失败经验的迟到反馈进入复核且保留失败类型；附加失败记忆冲突不改变原修复失败路径；派生索引故障留待重建，不阻塞已提交事实；状态／检索以只读连接访问索引，不建表。真实业务存储故障仍停止执行。最终定向 `17 passed in 45.59s`（`.cache/p5-review.xml`），关联记忆／SDK／API／Worker／调度回归 `110 passed in 145.20s`（`.cache/p5-review-regression.xml`），真实 Docker 原无进展路径与记忆冲突对照 `2 passed in 115.14s`（`.cache/p5-review-docker.xml`）；其后 Docker-enabled 全后端 `648 passed, 3 skipped in 1226.13s`（`.cache/p5-review-full.xml`）。Ruff 检查／格式、OpenSpec strict 与差异检查通过。首次关联回归因沙箱临时目录不可写而失败，已在允许临时测试数据库的环境重跑通过。浏览器、E12 或真实模型效果本轮未重跑，未提交／推送。
 - 2026-11-09 P5 验收：全后端 Docker-enabled 基线 `619 passed, 1 skipped in 1219.01s`（`.cache/p5-full.xml`），唯一跳过仍为独立开关的 Git 对象交接实验。基线后的失败事实／编码版本／候选过滤补丁经 `68 passed in 231.70s`（`.cache/p5-final-focused.xml`，含禁止 socket 的真实本地模型离线加载和 E12），真实 Docker 失败尝试入库／无进展专项为 `1 passed`（`.cache/p5-failure-memory.xml`）。最终子任务摘要依赖继承、父级检查点清理及未发送预留释放补丁另经 `25 passed in 53.76s`（`.cache/p5-context-final.xml`）；其后未再次全后端，不能把基线当作最后补丁后全量。

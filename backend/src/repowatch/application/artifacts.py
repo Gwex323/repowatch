@@ -8,6 +8,7 @@ from repowatch.adapters.storage.artifact_files import verify_file, write_immutab
 from repowatch.application.storage import ConflictError, StorageError
 from repowatch.application.task_records import block, business_event, execution_record, required
 from repowatch.domain.task_records import canonical_json, content_digest, require_time, stable_id
+from repowatch.operations.locks import guarded
 from repowatch.security import DEFAULT_REDACTOR
 
 
@@ -15,6 +16,7 @@ class ArtifactService:
     def __init__(self, store, artifacts_dir: Path):
         self.store, self.root = store, artifacts_dir.resolve()
 
+    @guarded
     def register(self, token, operation_key, data: bytes, *, context: dict, now):
         self.store.assert_execution_available()
         require_time(now)

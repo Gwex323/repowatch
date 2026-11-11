@@ -14,6 +14,7 @@ from repowatch.adapters.storage.checkpoints import CHECKPOINT_PACKAGE, _validate
 from repowatch.adapters.storage.sqlite import SCHEMA_REVISION, sqlite_engine
 from repowatch.application.storage import SchemaMismatch
 from repowatch.configuration import StorageSettings
+from repowatch.operations.locks import data_lock
 
 
 def migration_directory() -> Path:
@@ -22,6 +23,17 @@ def migration_directory() -> Path:
 
 
 def migrate(settings: StorageSettings) -> None:
+    if (settings.data_dir / ".restore-incomplete").exists():
+        raise SchemaMismatch("恢复尚未完成，不能通过迁移掩盖不完整备份")
+    from repowatch.operations.maintenance import dependency_status
+
+    dependency_status()
+    with data_lock(settings, "services", exclusive=True):
+        with data_lock(settings, exclusive=True):
+            _migrate(settings)
+
+
+def _migrate(settings: StorageSettings) -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     if settings.checkpoint_database.exists():
         with sqlite3.connect(settings.checkpoint_database) as connection:

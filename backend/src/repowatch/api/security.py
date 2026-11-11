@@ -31,6 +31,9 @@ class LocalSessions:
                 raise ValueError("控制面来源必须是显式回环 HTTP 地址")
         self.host = urlsplit(origin).netloc
         self.clock, self.sessions = clock, {}
+        self.rotate_bootstrap()
+
+    def rotate_bootstrap(self):
         self.bootstrap_token = secrets.token_urlsafe(32)
         DEFAULT_REDACTOR.register(SecretValue(self.bootstrap_token))
         self.bootstrap_used = False

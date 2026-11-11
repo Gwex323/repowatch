@@ -2,10 +2,11 @@
 
 import json
 
-from fastapi import APIRouter, Request
+from fastapi import Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from repowatch.api.guard import GuardedRouter
 from repowatch.domain.budget import BudgetAmounts
 
 
@@ -22,7 +23,7 @@ class Mutation(BaseModel):
 
 
 def routes(services):
-    router = APIRouter(prefix="/api/v1")
+    router = GuardedRouter(services.settings, prefix="/api/v1")
 
     @router.get("/state")
     def state():

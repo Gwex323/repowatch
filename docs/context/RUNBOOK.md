@@ -1,6 +1,6 @@
 # 文档与规划操作手册
 
-本页只记录当前有依据的方法。所有命令示例均不构成执行授权；操作前确认当前请求、项目根目录和 [AGENTS](../../AGENTS.md)。P0 开发安装与切片验证已有入口，完整产品启停、升级、备份和恢复尚待实现验证。
+本页只记录当前有依据的方法。所有命令示例均不构成执行授权；操作前确认当前请求、项目根目录和 [AGENTS](../../AGENTS.md)。P0 开发安装与切片验证已有入口，P6 安装启停、升级、备份恢复及首批样本复跑见[本地运维](../development/local-operations.md)，当前通过范围及未完成项见 [NOW](NOW.md)。
 
 ## 接续或局部维护文档
 
@@ -30,7 +30,7 @@ openspec validate build-github-issue-agent-harness --type change --strict --json
 
 首次写代码前按 [AGENTS](../../AGENTS.md) 核对仓库、任务分支与工作区；专用任务分支尚未就绪时先安全创建／切换，不在默认／受保护分支或 detached HEAD 上编辑代码，不丢弃或搬移用户修改。
 
-计划的产品操作和恢复语义见 [实施契约](../implementation-contracts.md) §10—11 与 [design](../../openspec/changes/build-github-issue-agent-harness/design.md) 的 Operations and stage gates／Migration Plan。待实现产生可执行入口及证据后，再补充对应操作、前置条件和验证方法。
+产品操作和恢复语义见 [实施契约](../implementation-contracts.md) §10—11 与 [design](../../openspec/changes/build-github-issue-agent-harness/design.md) 的 Operations and stage gates／Migration Plan。P6 已新增[本地安装与运维](../development/local-operations.md)入口；安装、停写迁移、一致备份及恢复须满足其中前置条件，当前验证结果及未通过项仍以 NOW 为准。
 
 ## P0 开发验证
 

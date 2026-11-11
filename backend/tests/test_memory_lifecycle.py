@@ -234,6 +234,7 @@ def test_upgrade_preserves_pending_feedback_for_preexisting_memory(tmp_path, mon
         configuration.attributes["connection"] = connection
         command.upgrade(configuration, "0025_repository_memory")
     engine.dispose()
+    current_revision = sqlite.SCHEMA_REVISION
     monkeypatch.setattr(sqlite, "SCHEMA_REVISION", "0025_repository_memory")
     old = sqlite.SQLiteBusinessStore(settings)
     tasks = TaskRecords(old)
@@ -254,7 +255,7 @@ def test_upgrade_preserves_pending_feedback_for_preexisting_memory(tmp_path, mon
         )
         records.change("tasks", {"id": task}, {"feedback_revision": 2})
     old.close()
-    monkeypatch.setattr(sqlite, "SCHEMA_REVISION", "0026_memory_lifecycle")
+    monkeypatch.setattr(sqlite, "SCHEMA_REVISION", current_revision)
     migrate(settings)
     new = sqlite.SQLiteBusinessStore(settings)
     try:

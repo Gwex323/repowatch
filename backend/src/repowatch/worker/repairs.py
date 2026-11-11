@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 
 from repowatch.adapters.docker_workspaces import DockerWorkspaces, source_path
 from repowatch.adapters.git_objects import GitObjectError, GitObjects
+from repowatch.adapters.workspace_backends import WorkspaceBackends
 from repowatch.application.acceptance import acceptance_view
 from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.delegation import Delegation
@@ -38,7 +39,11 @@ class RepairCoordinator:
     def __init__(self, services, runtime):
         self.services, self.runtime = services, runtime
         self.objects = GitObjects(services.settings.data_dir / "git-objects")
-        self.backend = DockerWorkspaces(services.settings.data_dir / "workspaces", self.objects)
+        self.backend = WorkspaceBackends(
+            services.store,
+            DockerWorkspaces(services.settings.data_dir / "workspaces", self.objects),
+            self.objects,
+        )
         self.workspaces = WorkspaceService(services.store, self.backend)
         self.runner = Runner(services, self.workspaces, clock=services.clock)
         self.evidence = RepairEvidence(services, self.workspaces)
@@ -320,6 +325,7 @@ class RepairCoordinator:
                 publication_head_sha=publication_head_sha,
                 message="RepoWatch: fix issue #" + str(snapshot["input"]["number"]),
             )
+            workspace = self.workspaces.require(token, workspace["id"], now=services.clock())
             candidate = self.create(token, frozen["sha"], workspace["image"], mode="check")
             after = self.check(
                 token,
@@ -426,7 +432,12 @@ class RepairCoordinator:
                     },
                 )
                 self.record_attempt(
-                    token, frozen, after_outcome, comparisons, [reproduced, validated]
+                    token,
+                    frozen,
+                    after_outcome,
+                    comparisons,
+                    [reproduced, validated],
+                    goal_completed=True,
                 )
                 evidence = {
                     "passed": True,
@@ -523,11 +534,14 @@ class RepairCoordinator:
                     error_type=type(error).__name__,
                 )
 
-    def record_attempt(self, token, frozen, outcome, comparisons, progress_ids):
+    def record_attempt(
+        self, token, frozen, outcome, comparisons, progress_ids, *, goal_completed=False
+    ):
         payload = {
             "producer": "host_stage_verifier",
             "objective_key": "repair",
             "status": "completed",
+            "goal_completed": goal_completed,
             "comparison": {
                 "manifest_sha256": frozen["manifest_sha256"],
                 "probe_outcome": outcome,
@@ -805,7 +819,12 @@ class RepairCoordinator:
                 "reproduce",
                 "processor",
                 (
-                    ToolBinding(read_source, BudgetAmounts(active_ms=1000)),
+                    ToolBinding(
+                        read_source,
+                        BudgetAmounts(
+                            active_ms=30000 if workspace.get("kind") == "native" else 1000
+                        ),
+                    ),
                     ToolBinding(write_analysis, BudgetAmounts(active_ms=1000)),
                 ),
                 verify,
