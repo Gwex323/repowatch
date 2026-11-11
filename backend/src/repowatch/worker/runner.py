@@ -73,6 +73,11 @@ class Runner:
                 operation_key=operation_key + ":recollect:" + recollect,
                 preparation=preparation,
             )
+        if workspace.get("kind") == "native":
+            from repowatch.worker.native_runner import native_check
+
+            return native_check(self, token, workspace, argv, timeout=timeout,
+                                operation_key=operation_key, preparation=preparation)
         identity = command_identity(workspace, argv, timeout)
         identity["generation"] = token.generation
         identifier = identity["container"].removeprefix("repowatch-command-")

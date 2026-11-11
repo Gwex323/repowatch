@@ -56,12 +56,22 @@ class RedactingLogFilter(logging.Filter):
         self.redactor = redactor
 
     def filter(self, record):
+        access_args = (
+            tuple(self.redactor.clean(value) for value in record.args)
+            if record.name == "uvicorn.access"
+            and isinstance(record.args, tuple)
+            and len(record.args) == 5
+            else None
+        )
         try:
             message = record.getMessage()
         except Exception:
             message = "日志参数无效"
         record.msg = self.redactor.text(message)
         record.args = ()
+        if access_args is not None:
+            record.msg = '%s - "%s %s HTTP/%s" %d'
+            record.args = access_args
         if record.exc_info:
             record.msg += " [异常详情已隐藏]"
         record.exc_info = None

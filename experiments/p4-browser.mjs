@@ -55,6 +55,9 @@ try {
   const index = await page.evaluate(async id => (await (await fetch("/api/v1/state")).json()).tasks.findIndex(task => task.id === id), setup.task_id);
   await page.locator("button.task-row").nth(index).click();
   await expect(page.getByRole("heading", {name:/受管 PR #2/})).toBeVisible();
+  await expect(page.getByRole("link", {name:"GitHub CI 检查", exact:true})).toHaveAttribute("href", /\/pull\/2\/checks$/);
+  await expect(page.getByRole("link", {name:"GitHub 评审与变更", exact:true})).toHaveAttribute("href", /\/pull\/2\/files$/);
+  await expect(page.getByRole("link", {name:"GitHub 合并页", exact:true})).toHaveAttribute("href", /\/pull\/2#partial-pull-merging$/);
   await expect(page.getByRole("button", {name:"批准方案与验收变化", exact:true})).toBeDisabled();
   await page.getByLabel("决定依据／澄清信息").fill("确认只增加所列负数场景，保留原有回归要求。");
   await page.getByRole("button", {name:"批准方案与验收变化", exact:true}).click();

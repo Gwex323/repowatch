@@ -13,9 +13,9 @@ from repowatch.adapters.providers import ProviderAdapter
 from repowatch.application.memory import RepositoryMemory
 from repowatch.application.task_records import TaskRecords
 from repowatch.domain.budget import BudgetAmounts
-from repowatch.domain.task_records import canonical_json
+from repowatch.domain.task_records import canonical_json, content_digest
 from repowatch.runtime.engine import FormalRuntime, ToolBinding
-from repowatch.worker.memory import MemoryWorker
+from repowatch.worker.memory import MemoryWorker, feedback_evidence
 from repowatch.worker.model_calls import BudgetedChatModel
 
 
@@ -193,6 +193,105 @@ def test_worker_feedback_review_cannot_overwrite_user_change(kernel, unrelated, 
     assert len(calls) == 2
     with services.store.read() as records:
         assert not records.one("global_control", singleton=1)["paused"]
+
+
+def test_sdk_feedback_keeps_review_and_diff_without_repeating_github_repository_metadata(kernel):
+    services = kernel
+    task, token = prepare(services)
+    identifier = services.memories.record_verified("memory-intent", CONTENT, now=0)
+    services.queue.complete(token, now=0, state="waiting", wait_reason="pr_review")
+    with services.store.write() as records:
+        records.change("distillation_intents", {"id": "memory-intent"}, {"state": "consumed"})
+    payload = {
+        "pull_requests": [
+            {
+                "id": 42,
+                "body": "CI failed",
+                "head": {
+                    "sha": "current-head",
+                    "repo": {
+                        "id": 12,
+                        "full_name": "owner/project",
+                        "description": "metadata" * 40000,
+                        "owner": {
+                            "id": 13,
+                            "login": "owner",
+                            "avatar_url": "https://example.invalid/avatar",
+                        },
+                    },
+                },
+                "reviews": [
+                    {
+                        "id": 43,
+                        "state": "CHANGES_REQUESTED",
+                        "body": "Wrong edge case",
+                        "commit_id": "current-head",
+                    }
+                ],
+                "files": [{"filename": "calculator.py", "patch": "- return a-b\n+ return a+b"}],
+                "checks": [{"conclusion": "failure", "head_sha": "current-head"}],
+            }
+        ]
+    }
+    TaskRecords(services.store).observe(
+        task, "github:pull_requests:large-feedback", "1", payload, kind="feedback", now=0
+    )
+    with services.store.write() as records:
+        records.change("tasks", {"id": task}, {"state": "waiting", "wait_reason": "pr_review"})
+    worker = MemoryWorker(services, FormalRuntime(services))
+    worker.schedule()
+    respond, calls = fixture_wire()
+
+    def wire(request):
+        data = respond(request).json()
+        function = data["choices"][0]["message"]["tool_calls"][0]["function"]
+        if function["name"] == "read_source":
+            function.update(name="read_evidence", arguments="{}")
+        else:
+            messages = json.loads(request.content)["messages"]
+            tool_result = next(
+                message["content"] for message in messages if message["role"] == "tool"
+            )
+            evidence = json.loads(tool_result)["feedback"][0]
+            assert evidence["payload_sha256"] == content_digest(payload)
+            pull = evidence["payload"]["pull_requests"][0]
+            assert pull["head"]["repo"] == {
+                "id": 12,
+                "full_name": "owner/project",
+                "owner": {"id": 13, "login": "owner"},
+            }
+            assert pull["head"]["sha"] == "current-head"
+            assert pull["reviews"] == payload["pull_requests"][0]["reviews"]
+            assert pull["files"] == payload["pull_requests"][0]["files"]
+            assert pull["checks"] == payload["pull_requests"][0]["checks"]
+            arguments = json.loads(function["arguments"])
+            arguments["summary"] = canonical_json(
+                {"unrelated": False, "rationale": "保留实际反证待复核"}
+            )
+            function["arguments"] = json.dumps(arguments)
+        return httpx.Response(200, json=data)
+
+    services.adapter = ProviderAdapter(services.providers, transport=httpx.MockTransport(wire))
+    assert worker.run(services.queue.claim(now=0))["state"] == "ended"
+    assert len(calls) == 2
+    assert services.memories.get(identifier)["state"] == "pending_review"
+    with services.store.read() as records:
+        original = records.one(
+            "pending_signals", task_id=task, source_key="github:pull_requests:large-feedback"
+        )
+        assert json.loads(original["payload_json"]) == payload
+
+
+def test_custom_feedback_fields_are_not_interpreted_as_github_transport_metadata():
+    payload = {
+        "repo": {"full_name": "domain object", "description": "acceptance fact"},
+        "url": "custom fact",
+    }
+    projected = feedback_evidence(
+        {"source_key": "manual:feedback", "payload_json": canonical_json(payload)}
+    )
+    assert projected["payload"] == payload
+    assert projected["payload_sha256"] == content_digest(payload)
 
 
 @pytest.mark.parametrize("before_child_request", [False, True])

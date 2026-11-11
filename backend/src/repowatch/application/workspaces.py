@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from repowatch.application.task_records import business_event, execution_record, required
 from repowatch.domain.task_records import canonical_json
+from repowatch.operations.native import require_backend
 
 
 class WorkspaceService:
@@ -13,12 +14,23 @@ class WorkspaceService:
         with self.store.read() as records:
             run = execution_record(records, token, now)
             task = required(records, "tasks", id=run["task_id"])
+            configuration = json.loads(run["snapshot_json"]).get("configuration", {})
+            require_backend(records, configuration)
             task_id, repository_id = task["id"], task["repository_id"]
             allowed = "implement" if task["mode"] in {"implement", "amend"} else "scan"
             mode = mode or allowed
             if mode not in {allowed, "check", "review"}:
                 raise PermissionError("工作区模式不能扩大任务写入能力")
-        result = self.backend.create(repository_id, sha, task_id=task_id, mode=mode, image=image)
+        if hasattr(self.backend, "create_for"):
+            result = self.backend.create_for(
+                configuration, repository_id, sha, task_id=task_id, mode=mode, image=image
+            )
+        else:
+            if configuration.get("execution_backend", "docker") != "docker":
+                raise PermissionError("工作区端口未接入请求的原生后端")
+            result = self.backend.create(
+                repository_id, sha, task_id=task_id, mode=mode, image=image
+            )
         with self.store.write() as records:
             execution_record(records, token, now)
             business_event(records, "workspace_preflight", task_id, result=result)

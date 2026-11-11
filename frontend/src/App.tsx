@@ -4,10 +4,11 @@ import "./styles.css";
 import { Repositories } from "./Repositories";
 import { PullRequestLifecycle } from "./PullRequestLifecycle";
 import { MemoryPanel } from "./Memory";
+import { OperationsPanel } from "./Operations";
 type Run = (action: () => Promise<unknown>, message?: string) => Promise<void>;
 const statusNames: Record<string, string> = { queued: "排队", running: "执行中", waiting: "等待", blocked: "阻塞", ended: "结束", cancelled: "取消", pending: "待批准", stale: "需刷新", approved: "已批准", rejected: "已拒绝", completed: "通过", failed: "失败", available: "可用", exhausted: "已耗尽", revoked: "已撤销", configuration_required: "待配置" };
 const textStatus = (value: string) => statusNames[value] ?? value;
-const requiresInput = (task: Task) => task.state === "waiting" && ["information", "approval", "review_scope", "pr_merge_conflict", "target_configuration", "pr_head_changed"].includes(task.wait_reason ?? "");
+const requiresInput = (task: Task) => task.state === "waiting" && ["information", "human_information", "approval", "review_scope", "pr_merge_conflict", "target_configuration", "pr_head_changed", "delivery_review"].includes(task.wait_reason ?? "");
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 function Evidence({ value, title = "查看持久记录" }: {
     value: unknown;
@@ -286,6 +287,7 @@ function TaskDetail({ task, state, run, onUpdated }: {
     onUpdated: () => Promise<void>;
 }) {
     const [information, setInformation] = useState("");
+    const [remoteReference, setRemoteReference] = useState("");
     const [issueNumber, setIssueNumber] = useState(0);
     const [acceptanceKind, setAcceptanceKind] = useState<"bug" | "feature" | "refactor">(task.acceptance?.kind ?? "bug");
     const [acceptanceContent, setAcceptanceContent] = useState(pretty(task.acceptance?.content ?? { objective: "", criteria: [] }));
@@ -328,7 +330,7 @@ function TaskDetail({ task, state, run, onUpdated }: {
 {["select", "request_triage", "cancel", "exclude", "reenable"].map(action => <button key={action} onClick={() => void operate(action)}>
 {({ select: "明确选择", request_triage: "重新分诊", cancel: "取消任务", exclude: "排除", reenable: "明确重新启用" })[action]}</button>)}</div>
 <Evidence value={task.input} title="当前输入与补充材料"/>
-<PullRequestLifecycle task={task} run={run} onUpdated={onUpdated}/>
+<PullRequestLifecycle task={task} repository={state.repositories.find(item => item.id === task.repository_id)} run={run} onUpdated={onUpdated}/>
 <h3>分诊与验收规范 · 修订 {task.acceptance_revision ?? 1}</h3>
 {task.issue_context && <article><h4>远端占用与 PR 关系核对</h4><Evidence value={task.issue_context.facts} title="当前 Issue、评论及 PR 证据"/>
 <p>填写下方补充信息作为判断依据；判断仅适用于当前远端事实，执行前会重新读取。</p>
@@ -347,6 +349,10 @@ function TaskDetail({ task, state, run, onUpdated }: {
 <Evidence value={task.relation_decisions} title="已保存的占用与 PR 关系决定"/>
 <Evidence value={task.candidate_issue_decisions} title="已保存的候选查重决定"/>
 <Evidence value={task.distillation_intents} title="验证后的待提炼意图"/>
+{task.publication_intents?.some(intent => ["unknown", "dispatched"].includes(intent.state)) && <form onSubmit={event => { event.preventDefault(); void operate("supply_information", {information, remote_object_reference: remoteReference}); }}>
+<label>待核验远端对象链接／编号<input value={remoteReference} onChange={event => setRemoteReference(event.target.value)} required /></label>
+<p>保存为待核验材料；系统仍须只读核对完整远端身份和回执，不凭输入直接确认交付。</p>
+<button type="submit">保存待核验远端引用</button></form>}
 {task.acceptance && <article><p>{task.acceptance.kind} · {!task.acceptance.current ? "输入或策略已变化，需保存新修订" : task.acceptance.approved ? `已由 ${task.acceptance.approved_by ?? "用户"} 批准` : "待批准"}</p><Evidence value={task.acceptance.content} title="当前验收条件"/></article>}
 <form onSubmit={event => { event.preventDefault(); void run(async () => { await mutate(`/tasks/${task.id}/operate`, {action:"set_acceptance", payload:{kind:acceptanceKind, content:JSON.parse(acceptanceContent)}}, task.revision); await onUpdated(); }, "验收规范已更新；先前批准不再适用于新修订。"); }}>
 <label htmlFor="acceptance-kind">任务类型</label><select id="acceptance-kind" value={acceptanceKind} onChange={event => setAcceptanceKind(event.target.value as typeof acceptanceKind)}><option value="bug">Bug 修复</option><option value="feature">功能</option><option value="refactor">纯重构</option></select>
@@ -480,12 +486,13 @@ export default function App() {
 </header>
 <nav aria-label="工作台导航">
 {[["tasks", "任务"], ["items", `待人工事项 ${state ? state.reasons.length + state.renewals.filter(item => ["pending", "stale"].includes(item.state)).length + state.tasks.filter(requiresInput).length : ""}`], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"], ["repositories", "仓库"], ["memory", "记忆"], ["events", "业务事件"]].map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
-{label}</button>)}</nav>
+{label}</button>)}<button className={tab === "operations" ? "active" : ""} onClick={() => setTab("operations")}>系统与维护</button></nav>
 <div aria-live="polite">
 {error && <p className="notice error" role="alert">
 {error}</p>}{message && <p className="notice success" role="status">
 {message}</p>}{busy && <p className="muted">正在保存并核对结果…</p>}</div>
 {state && <main aria-busy={busy}>
+{tab === "operations" && <OperationsPanel run={run}/>}
 {tab === "memory" && <MemoryPanel state={state} run={run}/>}
 {tab === "tasks" && <div className="task-layout">
 <section>

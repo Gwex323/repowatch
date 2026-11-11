@@ -17,7 +17,7 @@ API 仅绑定 `127.0.0.1`，同源提供 `frontend/dist`。启动完成后浏览
 backend/.venv/Scripts/python.exe -m repowatch.worker
 ```
 
-`--once` 只执行一次调度；Worker 先做异常对账。停止使用终端中断；浏览器关闭不等于 Worker 已停止。这是开发入口，Windows 安装启动器、服务联动停止和完整产品交付由 P6 实现。普通仓库扫描、修复与返修由独立 Worker 执行；只读同步不替代其串行执行、预算和证据门槛。
+`--once` 只执行一次调度；Worker 先做异常对账。开发调试可使用终端中断；浏览器关闭不等于 Worker 已停止。P6 的 Windows 安装启动器和服务联动停止见[本地安装与运维](local-operations.md)，完整交付验收状态见 NOW。普通仓库扫描、修复与返修由独立 Worker 执行；只读同步不替代其串行执行、预算和证据门槛。
 
 ## 会话与控制路由
 

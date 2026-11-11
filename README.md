@@ -1,10 +1,10 @@
 # RepoWatch
 
-RepoWatch 是面向本地开发的 GitHub Issue Agent Harness，按已确认架构分阶段实现。P0 与 P1 开发门槛已通过，具备持久调度／预算／恢复、供应商与角色、正式 Agent 引擎和最小本地控制台；当前证据及后续边界见 [NOW](docs/context/NOW.md)。
+RepoWatch 是面向本地开发的 GitHub Issue Agent Harness。P0—P6 的实施与受控技术验收已完成，具备持久调度／预算／恢复、仓库扫描、修复证据与受控发布、持续同步、记忆管理及本地安装／启停／运维；最终用户签收与发布另行记录。实际验证范围与剩余限制见 [NOW](docs/context/NOW.md)。
 
 ## 基本使用与接续
 
-开发环境安装与本地实验见[开发入口](docs/development/README.md)，控制台开发启动与人工处理见[本地控制](docs/development/local-control.md)；真实仓库扫描、修复发布与完整产品安装尚待后续阶段。当前目标和接续点统一见 [NOW](docs/context/NOW.md)，操作前置条件见 [RUNBOOK](docs/context/RUNBOOK.md)。规划、代码验收和最终用户验收分别记录。
+本地发行包制作、安装启停、升级与备份恢复见[本地安装与运维](docs/development/local-operations.md)；开发调试见[开发入口](docs/development/README.md)，人工控制见[本地控制](docs/development/local-control.md)。当前目标和接续点统一见 [NOW](docs/context/NOW.md)，操作前置条件见 [RUNBOOK](docs/context/RUNBOOK.md)。当前仍为开发预览，规划、代码验收、最终用户验收和发布授权分别记录。
 
 后续 AI 先确认 [AGENTS](AGENTS.md) 中的适用规则，需要定位时使用 [PROJECT_INDEX](PROJECT_INDEX.md)。索引按问题选读，不要求顺序读完所有链接；目录和配置关系见 [MAP](docs/context/MAP.md)。
 

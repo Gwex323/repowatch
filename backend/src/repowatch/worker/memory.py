@@ -15,7 +15,7 @@ from repowatch.application.task_records import (
 )
 from repowatch.domain.budget import BudgetAmounts
 from repowatch.domain.memory import MemoryContent
-from repowatch.domain.task_records import canonical_json
+from repowatch.domain.task_records import canonical_json, content_digest
 from repowatch.runtime.engine import StagePlan, ToolBinding
 
 
@@ -23,6 +23,45 @@ class FeedbackDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
     unrelated: StrictBool
     rationale: str
+
+
+def feedback_evidence(signal):
+    """Keep feedback facts and identities without GitHub transport metadata."""
+
+    def compact(value):
+        if isinstance(value, list):
+            return [compact(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        result = {}
+        for key, item in value.items():
+            if key in {"url", "_links"} or key.endswith("_url"):
+                continue
+            if key == "repo" and isinstance(item, dict) and "full_name" in item:
+                item = {
+                    name: item[name]
+                    for name in ("id", "full_name", "private", "fork", "default_branch", "owner")
+                    if name in item
+                }
+            if (
+                key in {"user", "owner", "assignee", "merged_by"}
+                and isinstance(item, dict)
+                and "login" in item
+            ):
+                item = {
+                    name: item[name]
+                    for name in ("id", "login", "type", "site_admin")
+                    if name in item
+                }
+            result[key] = compact(item)
+        return result
+
+    payload = json.loads(signal["payload_json"])
+    return {
+        **{key: value for key, value in signal.items() if key != "payload_json"},
+        "payload": compact(payload) if signal["source_key"].startswith("github:") else payload,
+        "payload_sha256": content_digest(payload),
+    }
 
 
 class MemoryWorker:
@@ -129,7 +168,7 @@ class MemoryWorker:
                     {
                         "memory": memory,
                         "feedback": [
-                            dict(item)
+                            feedback_evidence(dict(item))
                             for item in records.find(
                                 "pending_signals", task_id=source_task["id"], kind="feedback"
                             )

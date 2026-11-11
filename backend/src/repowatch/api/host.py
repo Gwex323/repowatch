@@ -33,11 +33,15 @@ from repowatch.application.roles import RoleService
 from repowatch.application.scans import ScanService
 from repowatch.application.task_records import TaskRecords
 from repowatch.configuration import StorageSettings
+from repowatch.operations.locks import guarded
 from repowatch.worker.commands import CommandSupervisor
 
 
 class HostServices:
     def __init__(self, settings, *, vault=None, clock=time.time, transport=None):
+        from repowatch.operations.maintenance import dependency_status
+
+        dependency_status()
         self.settings, self.clock = settings, clock
         self.store = SQLiteBusinessStore(settings)
         namespace = sha256(str(settings.data_dir).casefold().encode()).hexdigest()[:40]
@@ -77,6 +81,7 @@ class HostServices:
         self.candidate_issues = CandidateIssues(self)
         self.lifecycle = PullRequestLifecycle(self)
 
+    @guarded
     def reconcile_startup(self):
         self.providers.reconcile()
         self.github_reads.reconcile()
@@ -89,7 +94,10 @@ class HostServices:
 def create_host_app(settings=None, *, sessions=None, static_dir=None):
     services = HostServices(settings or StorageSettings.from_environment())
     services.reconcile_startup()
-    built_frontend = Path(__file__).resolve().parents[4] / "frontend" / "dist"
+    packaged = Path(__file__).resolve().parents[1] / "_frontend"
+    built_frontend = (
+        packaged if packaged.is_dir() else Path(__file__).resolve().parents[4] / "frontend" / "dist"
+    )
     if static_dir is None and built_frontend.is_dir():
         static_dir = built_frontend
     return create_app(services, sessions=sessions or LocalSessions(), static_dir=static_dir)

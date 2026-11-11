@@ -13,6 +13,7 @@ from repowatch.application.storage import ConflictError, StorageError
 from repowatch.application.task_records import business_event, required
 from repowatch.domain.synchronization import SynchronizationPolicy
 from repowatch.domain.task_records import canonical_json, require_time
+from repowatch.operations.locks import guarded
 
 
 def process_stopped(identity):
@@ -222,6 +223,7 @@ class GitHubSynchronization:
             )
             return repositories[identifier], run_id, sequence
 
+    @guarded
     def tick(self):
         now = self.clock()
         require_time(now)

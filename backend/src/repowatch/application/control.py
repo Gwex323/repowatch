@@ -111,6 +111,8 @@ class ControlService:
             reason = required(records, "block_reasons", id=reason_id)
             if reason["revision"] != expected_revision or reason["resolved"]:
                 raise ConflictError("阻塞事项已变化或处理")
+            if reason["code"] == "backup_restore_reconciliation":
+                raise PermissionError("恢复备份必须先通过系统页的只读恢复核对及显式确认")
             assert_quiescent(records)
             task = records.one("tasks", id=reason["task_id"]) if reason["task_id"] else None
             retry_id = None

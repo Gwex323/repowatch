@@ -22,6 +22,7 @@ RepoWatch 面向本地开发场景，规划以受控 Agent Harness 扫描 GitHub
 | 查已实现的业务数据端口、迁移入口与正式调度 | [业务持久化](docs/development/persistence.md)；当前接续点见 [NOW](docs/context/NOW.md)，任务与验收记录见 [tasks](openspec/changes/build-github-issue-agent-harness/tasks.md) |
 | 查已实现的预算计量、单步预留和有限续期 | [累计预算](docs/development/budgets.md)；产品规则见 [实施契约](docs/implementation-contracts.md) §3 |
 | 查 P1 控制台、开发启动及人工处理 | [本地控制](docs/development/local-control.md)，恢复前置见[控制与恢复](docs/development/control-recovery.md) |
+| 查 P6 安装启停、生产资源、升级、备份恢复与安全清理 | [本地安装与运维](docs/development/local-operations.md)，当前验证和支持边界见 [NOW](docs/context/NOW.md) |
 | 查正式图、同步子任务及持久进展／故障验收 | [运行引擎](docs/development/runtime.md)，当前通过范围见 [NOW](docs/context/NOW.md#证据入口与时效) |
 | 查导入扫描、自动补全与版本漂移 | [实施契约](docs/implementation-contracts.md) §4；[自动补全规则](docs/scan-recovery-proposal.md)；[工作流程](docs/workflow-design.md) Q28 |
 | 查 P2 工作区、离线依赖、扫描 UI 与当前复核证据 | [工作区与扫描操作](docs/development/workspaces-scans.md)，未验收项见 [NOW](docs/context/NOW.md) |

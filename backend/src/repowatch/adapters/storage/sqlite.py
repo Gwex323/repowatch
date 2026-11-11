@@ -11,8 +11,9 @@ from sqlalchemy.pool import NullPool
 
 from repowatch.application.storage import ConflictError, RecordPort, SchemaMismatch, StorageError
 from repowatch.configuration import StorageSettings
+from repowatch.operations.locks import FileLock, data_lock
 
-SCHEMA_REVISION = "0026_memory_lifecycle"
+SCHEMA_REVISION = "0027_local_operations"
 
 
 def sqlite_engine(settings: StorageSettings, *, create: bool = False):
@@ -110,6 +111,11 @@ class SQLiteBusinessStore:
     def __init__(self, settings: StorageSettings):
         self._execution_stopped = False
         self.settings = settings
+        if (settings.data_dir / ".restore-incomplete").exists():
+            raise SchemaMismatch("恢复尚未完成，请保留目录并从有效备份恢复至新目录")
+        if not settings.business_database.is_file():
+            raise SchemaMismatch("业务数据库未初始化，请在服务停写后执行迁移")
+        self._service_lock = FileLock(settings.data_dir / ".services.lock").acquire()
         self.engine = sqlite_engine(settings)
         self.metadata = MetaData()
         try:
@@ -124,13 +130,21 @@ class SQLiteBusinessStore:
                 self.metadata.reflect(connection)
         except SQLAlchemyError as error:
             self.engine.dispose()
+            self._service_lock.close()
             raise SchemaMismatch("业务数据库不可读取或 schema 未初始化") from error
         except BaseException:
             self.engine.dispose()
+            self._service_lock.close()
             raise
 
     @contextmanager
     def _scope(self, *, writable: bool) -> Iterator[RecordPort]:
+        with data_lock(self.settings):
+            with self._transaction(writable=writable) as records:
+                yield records
+
+    @contextmanager
+    def _transaction(self, *, writable: bool) -> Iterator[RecordPort]:
         try:
             with self.engine.connect() as connection:
                 if writable:
@@ -154,6 +168,14 @@ class SQLiteBusinessStore:
     def assert_execution_available(self):
         if self._execution_stopped:
             raise StorageError("本进程持久化曾失败，停止新执行；修复后重启并对账")
+        import json
+        import shutil
+
+        with self.read() as records:
+            policy = json.loads(records.one("operations_configuration", singleton=1)["policy_json"])
+        if shutil.disk_usage(self.settings.data_dir).free < policy["minimum_free_bytes"]:
+            self.stop_execution()
+            raise StorageError("可用磁盘不足，停止新执行／发布；清理后重启并核对运行")
 
     def stop_execution(self):
         self._execution_stopped = True
@@ -166,3 +188,4 @@ class SQLiteBusinessStore:
 
     def close(self) -> None:
         self.engine.dispose()
+        self._service_lock.close()

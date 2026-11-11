@@ -37,6 +37,9 @@ class RepairEvidence:
         commit = self.workspaces.backend.objects.commit_files(
             workspace["repository_id"], parent_sha, files, message=message
         )
+        snapshot = {**workspace, "mode": "review"}
+        if workspace.get("kind") == "native":
+            snapshot = self.workspaces.backend.freeze_read_only(workspace)
         with services.store.write() as records:
             run = execution_record(records, token, services.clock())
             task = required(records, "tasks", id=run["task_id"])
@@ -63,7 +66,6 @@ class RepairEvidence:
                 "import_epoch": repository["import_epoch"],
                 "configuration_sha256": content_digest(json.loads(task["configuration_json"])),
             }
-            snapshot = {**workspace, "mode": "review"}
             records.change(
                 "workspaces", {"id": workspace["id"]}, {"snapshot_json": canonical_json(snapshot)}
             )

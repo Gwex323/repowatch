@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 
 from repowatch.adapters.docker_workspaces import DockerWorkspaces
 from repowatch.adapters.git_objects import GitObjects
+from repowatch.adapters.workspace_backends import WorkspaceBackends
 from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.scans import ScanService
 from repowatch.application.task_records import execution_record, required
@@ -23,7 +24,11 @@ class ScanCoordinator:
         self.services, self.runtime = services, runtime
         self.objects = GitObjects(services.settings.data_dir / "git-objects")
         self.scans = ScanService(services.store, self.objects, services.artifacts)
-        self.backend = DockerWorkspaces(services.settings.data_dir / "workspaces", self.objects)
+        self.backend = WorkspaceBackends(
+            services.store,
+            DockerWorkspaces(services.settings.data_dir / "workspaces", self.objects),
+            self.objects,
+        )
         self.workspaces = WorkspaceService(services.store, self.backend)
         self.runner = Runner(services, self.workspaces, clock=services.clock)
 

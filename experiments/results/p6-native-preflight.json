@@ -1,0 +1,331 @@
+{
+  "scope": "Recorded isolation and product qualification; current acceptance session ended cleanly and does not confer persistent live admission",
+  "control_directory_preflight": {
+    "evidence_source": "user-provided console output",
+    "observed_at": "2026-11-10T04:05:08.8827073Z",
+    "run_id": "94f15478d94449d8842d0008d3df83c6",
+    "identity_matches": true,
+    "administrator": false,
+    "control_canary_read": "denied",
+    "control_canary_write": "denied",
+    "passed": true,
+    "probe_sha256": "ffa41ee86b7783f3feff1fb0f6f3e717e0991cefce3a3215ec3d65e9f31ee96e",
+    "private_report": ".cache/native-preflight/94f15478d94449d8842d0008d3df83c6/runner-report.json"
+  },
+  "appcontainer_experiment": {
+    "controller_account": {
+      "passed": true,
+      "observed_at": "2026-11-10T04:12:15.1870627Z",
+      "checks": [
+        "actual_appcontainer_token",
+        "no_inherited_handles",
+        "explicit_environment",
+        "suspended_startup_job_gate",
+        "native_result_5",
+        "workspace_writable",
+        "same_user_outside_read_denied",
+        "same_user_outside_write_denied",
+        "source_read_allowed",
+        "source_write_denied",
+        "protected_markers_unchanged"
+      ],
+      "private_report": ".cache/native-preflight/94f15478d94449d8842d0008d3df83c6/controller-isolation-report.json"
+    },
+    "execution_account": {
+      "result": "passed_in_basic_recorded_scope",
+      "evidence_source": "user-provided console output",
+      "observed_at": "2026-11-10T04:17:24.6659567Z",
+      "run_id": "23c30f4eb1f14d12bf558c5490907104",
+      "checks": [
+        "actual_appcontainer_token",
+        "no_inherited_handles",
+        "explicit_environment",
+        "suspended_startup_job_gate",
+        "native_result_5",
+        "workspace_writable",
+        "same_user_outside_read_denied",
+        "same_user_outside_write_denied",
+        "source_read_allowed",
+        "source_write_denied",
+        "protected_markers_unchanged"
+      ],
+      "source_hashes": {
+        "isolation.ps1": "7A295CA3A2B1E3B63C86AF3A839999ECBC01923D4324823197B6E928A0B1C538",
+        "native_appcontainer.cs": "CBC313F5D5755C50FA2104089ED7E31BEBFB18434E93E312A22912FE3CB2FEDB"
+      },
+      "private_report": ".cache/native-preflight/94f15478d94449d8842d0008d3df83c6/runner-isolation-report.json",
+      "extended_security_qualification": "passed_in_recorded_scope"
+    },
+    "implementation": [
+      "backend/src/repowatch/_native/kernel.cs",
+      "backend/src/repowatch/_native/qualification.ps1",
+      "backend/src/repowatch/_native/security_probe.cs",
+      "experiments/p6-native-session.ps1"
+    ],
+    "sources": [
+      "https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer",
+      "https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation"
+    ],
+    "earlier_attempts": "Initial controlled attempts failed on environment initialization and cmd result/error-code collection; corrected before the recorded passing controller experiment",
+    "extended_controller_account": {
+      "observed_at": "2026-11-10T04:25:30.7323392Z",
+      "checks": [
+        "actual_appcontainer_token",
+        "no_inherited_handles",
+        "explicit_environment",
+        "suspended_startup_job_gate",
+        "native_result_5",
+        "workspace_writable",
+        "same_user_outside_read_denied",
+        "same_user_outside_write_denied",
+        "source_read_allowed",
+        "source_write_denied",
+        "protected_markers_unchanged",
+        "ordinary_parent_canary_baseline",
+        "fake_credential_unreadable",
+        "parent_environment_not_inherited",
+        "loopback_canary_not_reached_with_live_before_after_baselines",
+        "timeout_child_stopped_with_creation_time_check"
+      ],
+      "security_canaries": {
+        "credential_canary_read_denied": true,
+        "credential_error": 5,
+        "parent_environment_absent": true,
+        "loopback_connection": "bounded_timeout",
+        "passed": true
+      },
+      "timed_out_child_stopped": true,
+      "isolated_loopback_connection_observed": false,
+      "ordinary_parent_before_after_baselines": true,
+      "private_report": ".cache/native-preflight/94f15478d94449d8842d0008d3df83c6/controller-security-report.json",
+      "scope": "Fake credential canary, explicit environment, bounded loopback observation and single timed-out child identity only; not real API or crash/descendant recovery",
+      "earlier_failure": "Synchronous network collection exceeded the finite timeout; replaced with an explicit bounded attempt plus server-side before/after reachability baselines, preserving bounded_timeout rather than claiming explicit access denial"
+    }
+  },
+  "native_admitted": false,
+  "final_product_accepted": false,
+  "pending": [],
+  "qualification_session": {
+    "scope": "Fixed qualify operation only, no command/path/script arguments, maximum 1800 seconds",
+    "fixed_request_passed": true,
+    "arbitrary_command_fields_refused": true,
+    "private_test_directory": ".cache/native-session-test/066fb1e6da834388bc79eec5ae6ed819",
+    "execution_account_session": "verified_and_completed_fixed_requests",
+    "native_admitted": false,
+    "lifecycle": "Ended normally at its 30-minute lifetime; production execution uses a separate explicit host"
+  },
+  "final_isolation_qualification": {
+    "controller_account": {
+      "run_id": "04c4c65848ea4b08b111dc061586d1cb",
+      "observed_at": "2026-11-10T06:31:57.3617710Z",
+      "scope": "Native AppContainer qualification: file boundaries, fake credential/environment/loopback canaries and bounded timeout; no product backend",
+      "checks": [
+        "actual_appcontainer_token",
+        "no_inherited_handles",
+        "explicit_environment",
+        "suspended_startup_job_gate",
+        "native_result_5",
+        "workspace_writable",
+        "same_user_outside_read_denied",
+        "same_user_outside_write_denied",
+        "source_read_allowed",
+        "source_write_denied",
+        "protected_markers_unchanged",
+        "ordinary_parent_canary_baseline",
+        "fake_credential_unreadable",
+        "parent_environment_not_inherited",
+        "loopback_canary_not_reached_with_live_before_after_baselines",
+        "timeout_child_stopped_with_creation_time_check",
+        "abrupt_job_owner_death_stops_native_root_and_descendants",
+        "real_control_api_unauthenticated_401_before_and_after",
+        "appcontainer_cannot_connect_to_live_control_api"
+      ],
+      "control_api_status_before": 401,
+      "control_api_status_after": 401,
+      "security_canaries": {
+        "credential_canary_read_denied": true,
+        "credential_error": 5,
+        "parent_environment_absent": true,
+        "loopback_connection": "bounded_timeout",
+        "real_control_api_connection": "bounded_timeout",
+        "passed": true
+      },
+      "isolated_loopback_connection_observed": false,
+      "ordinary_parent_before_after_baselines": true,
+      "timed_out_child_stopped": true,
+      "owner_crash": {
+        "total_members_before": 3,
+        "active_members_after": 0,
+        "recorded_child_stopped": true,
+        "active_members_before": 3
+      }
+    },
+    "execution_account": {
+      "run_id": "f2ca6ba0cb144b9289a71f8fcc7f4205",
+      "observed_at": "2026-11-10T06:32:50.2650346Z",
+      "scope": "Native AppContainer qualification: file boundaries, fake credential/environment/loopback canaries and bounded timeout; no product backend",
+      "checks": [
+        "actual_appcontainer_token",
+        "no_inherited_handles",
+        "explicit_environment",
+        "suspended_startup_job_gate",
+        "native_result_5",
+        "workspace_writable",
+        "same_user_outside_read_denied",
+        "same_user_outside_write_denied",
+        "source_read_allowed",
+        "source_write_denied",
+        "protected_markers_unchanged",
+        "ordinary_parent_canary_baseline",
+        "fake_credential_unreadable",
+        "parent_environment_not_inherited",
+        "loopback_canary_not_reached_with_live_before_after_baselines",
+        "timeout_child_stopped_with_creation_time_check",
+        "abrupt_job_owner_death_stops_native_root_and_descendants",
+        "real_control_api_unauthenticated_401_before_and_after",
+        "appcontainer_cannot_connect_to_live_control_api"
+      ],
+      "control_api_status_before": 401,
+      "control_api_status_after": 401,
+      "security_canaries": {
+        "credential_canary_read_denied": true,
+        "credential_error": 5,
+        "parent_environment_absent": true,
+        "loopback_connection": "bounded_timeout",
+        "real_control_api_connection": "bounded_timeout",
+        "passed": true
+      },
+      "isolated_loopback_connection_observed": false,
+      "ordinary_parent_before_after_baselines": true,
+      "timed_out_child_stopped": true,
+      "owner_crash": {
+        "total_members_before": 3,
+        "active_members_after": 0,
+        "recorded_child_stopped": true,
+        "active_members_before": 3
+      },
+      "evidence_source": "fixed qualification session response with checked execution SID",
+      "request_id": "2da90161b8bd4b29b7a485535617be9b",
+      "source_hashes": {
+        "isolation.ps1": "7c3bc820e8f4bceafe1edc5a17242743d1947a1a6539179be0b3abff3a277cb2",
+        "native_appcontainer.cs": "7d0a2a9f973cbcde511a0b3c146478a2930fc96aa87350905f662c5cb2698c95",
+        "native_security_probe.cs": "62ddba84c3eba68ef8cb395669548891e708a635b192903e5867660fdaf3dba7",
+        "p6-native-crash-owner.ps1": "d4f122a22275c0de20246000a0a169e6acdef0c3d67de3358914d3983a910d59"
+      },
+      "private_report": ".cache/native-preflight/94f15478d94449d8842d0008d3df83c6/runner-final-qualification.json"
+    },
+    "scope": "Kernel isolation qualification only; not product native host or repository workflow acceptance",
+    "corrected_failures": [
+      "Temporary real API host initially had an origin/port mismatch and correctly returned 403; fixture origin fixed, product security unchanged",
+      "Job termination could finish before the immediate TerminateProcess call; now await the handle completion signal and verify job membership is zero"
+    ]
+  },
+  "product_implementation": {
+    "recorded_at": "2026-11-10T10:18:33.230284+00:00",
+    "state": "qualified_in_recorded_stdlib_cli_scope",
+    "protocol": "repowatch-native-v1",
+    "product_report": "experiments/results/p6-native-product.json",
+    "source_hashes": {
+      "capture_qualification.ps1": "2e16591d7628889b62aee7b8de751885a95416b7f55ab08e1360b0bb5e5f33c7",
+      "command.ps1": "1b49470c89ab0aaea3e95fedec07b7854785904d190d91861473dee17ebb85b1",
+      "crash_owner.ps1": "e80db43622c18877b17748885f0d41dd904193525248efe3b8cb69bf5e8b2334",
+      "host.ps1": "9cdec7aed937560a9aeafde6c124c80c68441e4a3334c7a7ec619f432c5eeb85",
+      "kernel.cs": "86e3276b50650d0028c41c16ad78dd56bc62eab1a113d65b6e63802c00e5a551",
+      "prepare.ps1": "091d288d1490df5c4db18b41c3b3044f7c9936101cc25de5cca0212515f2e9cb",
+      "qualification.ps1": "63ca9492d84c9c9616efe65cbd56b138c1a59f500d8035aa805d8711f492070b",
+      "security_probe.cs": "a213f15170d8a80a76a2f1622b8da1962c878824066720a32d59f2c146e13bb7"
+    },
+    "code_validation": {
+      "full_backend_baseline": ".cache/p6-native-full.xml",
+      "native_suite": ".cache/p6-native-qualified-unit.xml",
+      "last_progress_and_caller_patch": ".cache/p6-native-terminal.xml",
+      "last_shared_docker_patch": ".cache/p6-native-terminal-shared.xml",
+      "capability_api": ".cache/p6-native-capability-view.xml",
+      "object_handoff": ".cache/p6-native-object-handoff.xml"
+    },
+    "native_product_passed": true,
+    "paid_model_calls": 0,
+    "session_stopped_cleanly": true
+  },
+  "initial_product_implementation_record": {
+    "recorded_at": "2026-11-10T08:48:43.855818+00:00",
+    "state": "implemented_pending_execution_account_activation_and_product_workflow",
+    "protocol": "repowatch-native-v1",
+    "host_resources": [
+      "backend/src/repowatch/_native/capture_qualification.ps1",
+      "backend/src/repowatch/_native/command.ps1",
+      "backend/src/repowatch/_native/crash_owner.ps1",
+      "backend/src/repowatch/_native/host.ps1",
+      "backend/src/repowatch/_native/kernel.cs",
+      "backend/src/repowatch/_native/prepare.ps1",
+      "backend/src/repowatch/_native/qualification.ps1",
+      "backend/src/repowatch/_native/security_probe.cs"
+    ],
+    "resource_sha256": {
+      "capture_qualification.ps1": "2e16591d7628889b62aee7b8de751885a95416b7f55ab08e1360b0bb5e5f33c7",
+      "command.ps1": "0ee9b099da51d263461010d1beecfd62ab1c20d4d4fa4d7df461d9c7ad39e717",
+      "crash_owner.ps1": "e80db43622c18877b17748885f0d41dd904193525248efe3b8cb69bf5e8b2334",
+      "host.ps1": "d211a3b2e1cd698d8dd21fc00ec0715b284d81b54a92ead0adb71a88f1cb3291",
+      "kernel.cs": "86e3276b50650d0028c41c16ad78dd56bc62eab1a113d65b6e63802c00e5a551",
+      "prepare.ps1": "091d288d1490df5c4db18b41c3b3044f7c9936101cc25de5cca0212515f2e9cb",
+      "qualification.ps1": "63ca9492d84c9c9616efe65cbd56b138c1a59f500d8035aa805d8711f492070b",
+      "security_probe.cs": "a213f15170d8a80a76a2f1622b8da1962c878824066720a32d59f2c146e13bb7"
+    },
+    "supported_implementation_scope": "Windows x64, separate ordinary local account, per-command AppContainer, pinned CPython stdlib CLI; not yet product-qualified",
+    "controller_command_probe": {
+      "passed": true,
+      "native_admitted": false,
+      "checks": [
+        "pinned_stdlib_runtime",
+        "actual_appcontainer_token",
+        "parent_verified_gate",
+        "isolated_copy_writable",
+        "outside_and_source_denied",
+        "original_source_unchanged",
+        "stdout_captured",
+        "all_job_members_stopped",
+        "temporary_tree_removed"
+      ],
+      "result": {
+        "protocol": "repowatch-native-v1",
+        "request_id": "c87b9e69a00749038040e015adddfe9b",
+        "request_sha256": "e75ec955793f004efc0160e4bf104a50437e1a304a95cb4ec2b535f8185be7a8",
+        "generation": "3a24ab21bf414ac5a51100e53c84ec14",
+        "workspace_id": "repowatch-native-606510e5ce594a50aaf1630880512ef4",
+        "state": "stopped",
+        "exit_code": 0,
+        "timed_out": false,
+        "control_stopped": false,
+        "log_truncated": false,
+        "log_file": "c87b9e69a00749038040e015adddfe9b.log",
+        "log_sha256": "bc3420956aa8628e93fe50c78c6194ce084eb45f05b64be41d3d9c46f00d2a07",
+        "pid": 45260,
+        "created": 134387736078835191,
+        "active_processes": 0,
+        "identity_verified": true,
+        "cleanup_pending": false
+      },
+      "private_report": ".cache/native-command-da682a076a7d47e59562cb4c764dc8cf/report.json"
+    },
+    "capture_kernel_probe": {
+      "passed": true,
+      "checks": [
+        "explicit_stdio_capture",
+        "windows_argument_quoting",
+        "job_resource_configuration",
+        "missing_gate_prevents_execution",
+        "cancel_before_gate_prevents_execution",
+        "all_job_members_stopped"
+      ]
+    },
+    "regression": {
+      "passed": 73,
+      "skipped": 16,
+      "skip_reason": "Explicit Docker test flag was unset; dedicated rerun pending",
+      "private_report": ".cache/p6-native-regression-v2.xml"
+    },
+    "paid_model_calls": 0,
+    "native_admitted": false
+  },
+  "product_sample_passed": true
+}

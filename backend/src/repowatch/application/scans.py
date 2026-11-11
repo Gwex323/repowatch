@@ -56,9 +56,7 @@ class ScanService:
                 # A changed check contract needs fresh baseline evidence while
                 # retaining the old batch and its recorded results for audit.
                 environment = {**environment, "check_contract_sha256": content_digest(checks)}
-                identifier = stable_id(
-                    "scan", task_id, version, environment, manifest["policy"]
-                )
+                identifier = stable_id("scan", task_id, version, environment, manifest["policy"])
                 old = records.one("scan_batches", id=identifier)
             if not old:
                 records.change(

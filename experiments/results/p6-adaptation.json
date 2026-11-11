@@ -1,0 +1,318 @@
+{
+  "verified_at": "2026-11-09T16:51:41.957868+00:00",
+  "passed": true,
+  "environment": "Windows + Docker Desktop Linux containers + Microsoft Edge",
+  "model": "deterministic_http_fixture",
+  "paid_model_calls": 0,
+  "samples": {
+    "python-cli": {
+      "route": "direct",
+      "issue": {
+        "number": 19,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/19"
+      },
+      "pr": {
+        "id": "5227273254",
+        "number": 20,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/20",
+        "base_ref": "p6/acceptance-20261110-python-cli",
+        "head_ref": "repowatch/issue-19-2666763a-f54",
+        "base_sha": "7959af2c8c73b2e89610ae469a4c9ff57d74293b",
+        "head_sha": "4f9a920ea9609e6b2d1f248eb8a44d9c4659eeaa",
+        "head_repository_id": "1447899115"
+      },
+      "preparation": {
+        "sample": "python-cli",
+        "route": "direct",
+        "branch": "p6/acceptance-20261110-python-cli",
+        "base_sha": "7959af2c8c73b2e89610ae469a4c9ff57d74293b",
+        "tree_sha": "30db3a46cb22c0b3a34ef8d95d8fdc3c2fa90815",
+        "image": "python:3.13-slim-bookworm",
+        "prepared_by": "acceptance_operator",
+        "github_writes": true,
+        "fixture_files_sha256": "e13959b891985425cc4a65c51e01ab6085fdf3bef029d04398fbb8c87ea57362"
+      },
+      "task_id": "2666763a-f54a-5c05-9390-3d9d367d9be0",
+      "candidate_sha": "4f9a920ea9609e6b2d1f248eb8a44d9c4659eeaa",
+      "base_probe_exit_code": 1,
+      "candidate_probe_exit_code": 0,
+      "independent_review_passed": true,
+      "memory_states": [
+        "success"
+      ],
+      "adaptation": {
+        "candidate_sha": "4f9a920ea9609e6b2d1f248eb8a44d9c4659eeaa",
+        "image": "sha256:a1165e272e578941b84abc79e4ab38a0305cd12803a5c4247979ac7655f4d641",
+        "build_argv": [
+          "python",
+          "-m",
+          "compileall",
+          "-q",
+          "."
+        ],
+        "build_exit_code": 0,
+        "build_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cli": {
+          "argv": [
+            "python",
+            "/source/p6_python_cli.py",
+            "2",
+            "3"
+          ],
+          "exit_code": 0,
+          "stdout": "5"
+        }
+      },
+      "installed_wheel": false,
+      "global_paused_after_acceptance": true,
+      "operator_actions": [
+        "prepare isolated sample branch",
+        "prefix new PR title with P6"
+      ],
+      "prior_failures": [],
+      "prior_failures_note": null,
+      "installed_package": null,
+      "private_report": ".repowatch/p6-python-cli/report.json",
+      "private_report_sha256": "0121f2720ae4806f30647083e534db0f645d1ad048e1c7414b41ff05496b6919"
+    },
+    "python-web": {
+      "route": "fork",
+      "issue": {
+        "number": 21,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/21"
+      },
+      "pr": {
+        "id": "5227321306",
+        "number": 22,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/22",
+        "base_ref": "p6/acceptance-20261110-python-web",
+        "head_ref": "repowatch/issue-21-6b2d1eef-d87",
+        "base_sha": "236ef8637bf27b9fd1ea7f3dabe873686fac131c",
+        "head_sha": "1deb099eb33490e9ab42e903824975e5794dd48f",
+        "head_repository_id": "1447913051"
+      },
+      "preparation": {
+        "sample": "python-web",
+        "route": "fork",
+        "branch": "p6/acceptance-20261110-python-web",
+        "base_sha": "236ef8637bf27b9fd1ea7f3dabe873686fac131c",
+        "tree_sha": "2c6c96b043fb2538b93ba600dce5cd889306311f",
+        "image": "python:3.13-slim-bookworm",
+        "prepared_by": "acceptance_operator",
+        "github_writes": true,
+        "fixture_files_sha256": "3ca80b02872806da0b36e1bd53914b20642d5286c1b7f6c341b2db3ecc700108"
+      },
+      "task_id": "6b2d1eef-d873-571a-bed5-57609d8ec035",
+      "candidate_sha": "1deb099eb33490e9ab42e903824975e5794dd48f",
+      "base_probe_exit_code": 1,
+      "candidate_probe_exit_code": 0,
+      "independent_review_passed": true,
+      "memory_states": [
+        "success"
+      ],
+      "adaptation": {
+        "candidate_sha": "1deb099eb33490e9ab42e903824975e5794dd48f",
+        "image": "sha256:a1165e272e578941b84abc79e4ab38a0305cd12803a5c4247979ac7655f4d641",
+        "build_argv": [
+          "python",
+          "-m",
+          "compileall",
+          "-q",
+          "."
+        ],
+        "build_exit_code": 0,
+        "build_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "browser": {
+          "sample": "python-web",
+          "passed": true,
+          "checks": [
+            "actual HTTP document",
+            "correct result from candidate",
+            "reload retains result",
+            "no browser runtime errors"
+          ],
+          "externalModels": false,
+          "errors": []
+        },
+        "preview_boundary": "read-only source volume, no host mounts or credentials, loopback publication"
+      },
+      "installed_wheel": false,
+      "global_paused_after_acceptance": true,
+      "operator_actions": [
+        "prepare isolated sample branch",
+        "prefix new PR title with P6"
+      ],
+      "prior_failures": [],
+      "prior_failures_note": null,
+      "installed_package": null,
+      "private_report": ".repowatch/p6-python-web/report.json",
+      "private_report_sha256": "fbc132a05a6810c276e4922880992796f01ec9d9a5a2adf27246692ee492ca09"
+    },
+    "javascript-cli": {
+      "route": "direct",
+      "issue": {
+        "number": 23,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/23"
+      },
+      "pr": {
+        "id": "5227385617",
+        "number": 25,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/25",
+        "base_ref": "p6/acceptance-20261110-javascript-cli",
+        "head_ref": "repowatch/issue-23-072c3463-f4f",
+        "base_sha": "97280c1f83b93db1e5de2b151e2d5e6ef9008548",
+        "head_sha": "82ea42f02d562ccfbc91c2f9c3afd04a8c45fd98",
+        "head_repository_id": "1447899115"
+      },
+      "preparation": {
+        "sample": "javascript-cli",
+        "route": "direct",
+        "branch": "p6/acceptance-20261110-javascript-cli",
+        "base_sha": "97280c1f83b93db1e5de2b151e2d5e6ef9008548",
+        "tree_sha": "551f80c6c49fd8230100b5b6e5407b2191a6043b",
+        "image": "node:24-bookworm-slim",
+        "prepared_by": "acceptance_operator",
+        "github_writes": true,
+        "fixture_files_sha256": "16852571200570e57cdfc40a52c5bcfb4c2473316048857f7bf980b7f20fa360"
+      },
+      "task_id": "072c3463-f4fe-520e-889a-c5105015f5b3",
+      "candidate_sha": "82ea42f02d562ccfbc91c2f9c3afd04a8c45fd98",
+      "base_probe_exit_code": 1,
+      "candidate_probe_exit_code": 0,
+      "independent_review_passed": true,
+      "memory_states": [
+        "success"
+      ],
+      "adaptation": {
+        "candidate_sha": "82ea42f02d562ccfbc91c2f9c3afd04a8c45fd98",
+        "image": "sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20",
+        "build_argv": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "build_exit_code": 0,
+        "build_stdout_sha256": "12be28edd237639d0c261709f9694ed803c64341d953cbd32cbb95bd19ab7bb6",
+        "cli": {
+          "argv": [
+            "node",
+            "/source/p6_node_cli.mjs",
+            "2",
+            "3"
+          ],
+          "exit_code": 0,
+          "stdout": "5"
+        }
+      },
+      "installed_wheel": false,
+      "global_paused_after_acceptance": true,
+      "operator_actions": [
+        "prepare isolated sample branch",
+        "prefix new PR title with P6"
+      ],
+      "prior_failures": [],
+      "prior_failures_note": null,
+      "installed_package": null,
+      "private_report": ".repowatch/p6-javascript-cli/report.json",
+      "private_report_sha256": "9319bea608bf69c1956fd81510d548e9eb577fa3e0c106adcd349b5c0c032d51"
+    },
+    "typescript-web": {
+      "route": "fork",
+      "issue": {
+        "number": 24,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/issues/24"
+      },
+      "pr": {
+        "id": "5227452363",
+        "number": 26,
+        "url": "https://github.com/Gwex323/repowatch-p3-sandbox/pull/26",
+        "base_ref": "p6/acceptance-20261110-typescript-web",
+        "head_ref": "repowatch/issue-24-ec4e27ac-66d",
+        "base_sha": "520091dc91de34739f67aa4780ce2e58df984bb8",
+        "head_sha": "6a78d4437a01c904e54ca9aad4dd6c7a28b74ab2",
+        "head_repository_id": "1447913051"
+      },
+      "preparation": {
+        "sample": "typescript-web",
+        "route": "fork",
+        "branch": "p6/acceptance-20261110-typescript-web",
+        "base_sha": "520091dc91de34739f67aa4780ce2e58df984bb8",
+        "tree_sha": "38655a50cf00699d1a76b5bc31f61caa368d20d0",
+        "image": "repowatch-p6-typescript:2e6f7026ba4b",
+        "prepared_by": "acceptance_operator",
+        "github_writes": true,
+        "fixture_files_sha256": "fd5725ea7a302878a92709e81834bc799f60049f681f3885190c6d9b45859fc4"
+      },
+      "task_id": "ec4e27ac-66db-5be6-afb2-636e09977085",
+      "candidate_sha": "6a78d4437a01c904e54ca9aad4dd6c7a28b74ab2",
+      "base_probe_exit_code": 1,
+      "candidate_probe_exit_code": 0,
+      "independent_review_passed": true,
+      "memory_states": [
+        "pending_review",
+        "success"
+      ],
+      "adaptation": {
+        "candidate_sha": "6a78d4437a01c904e54ca9aad4dd6c7a28b74ab2",
+        "image": "sha256:e42ba57d9f5ec41d4c52dfb16871854fe6ec85fa60e19ae698b42fd9328ca820",
+        "build_argv": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "build_exit_code": 0,
+        "build_stdout_sha256": "eb80b7d37c7eef15d44cc24540bfea162124ea49ae0ea4ed47a85d61f93fe99b",
+        "browser": {
+          "sample": "typescript-web",
+          "passed": true,
+          "checks": [
+            "actual HTTP document",
+            "correct result from candidate",
+            "reload retains result",
+            "no browser runtime errors"
+          ],
+          "externalModels": false,
+          "errors": []
+        },
+        "preview_boundary": "read-only source volume, no host mounts or credentials, loopback publication"
+      },
+      "installed_wheel": true,
+      "global_paused_after_acceptance": true,
+      "operator_actions": [
+        "prepare isolated sample branch",
+        "prefix new PR title with P6"
+      ],
+      "prior_failures": [
+        {
+          "id": "a239e9d4-4efe-5f2d-b6cd-ed9726d87ffc",
+          "task_id": "211e4edf-cd9b-5a00-8734-0a42a99c3ebb",
+          "code": "runtime_execution_rejected",
+          "revision": 5,
+          "resolved": 1
+        },
+        {
+          "id": "bf5c1d68-f9ea-5835-b95c-88a2d5fc24e1",
+          "task_id": "ec4e27ac-66db-5be6-afb2-636e09977085",
+          "code": "runtime_execution_rejected",
+          "revision": 2,
+          "resolved": 1
+        }
+      ],
+      "prior_failures_note": "First source-task failure has no retained exception detail; later feedback maintenance exposed input overflow (fixed in product) and an invalid fixture summary type (fixed in harness). The old failed memory remains pending_review.",
+      "installed_package": {
+        "wheel": ".cache/p6-feedback-final-release/repowatch-0.1.0.dev0-py3-none-any.whl",
+        "sha256": "dde66ee590eb87d0e35a12147ca0d94f2ec0d74696863a97d8b2e9604eae5b83"
+      },
+      "private_report": ".repowatch/p6-typescript-web/report.json",
+      "private_report_sha256": "ea2d348598c078c9ba837b708b91768f6ddf4770e7be22c7ef6bcba18f36ca8c"
+    }
+  },
+  "scope": "Small offline-installable Python and JS/TS Web/CLI fixtures; actual scan, Issue, repair, review, PR, memory, build and runtime",
+  "limitations": [
+    "Model outputs are fixtures; this does not establish paid model repair efficacy",
+    "No arbitrary registry dependencies, private services or specialized hardware verified",
+    "Native product qualification is recorded separately in p6-native-product.json; final user acceptance is not inferred",
+    "PRs remain open for review; no merge or release was performed"
+  ],
+  "final_product_accepted": false
+}

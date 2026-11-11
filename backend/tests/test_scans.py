@@ -417,8 +417,7 @@ def test_tracked_unittest_suite_does_not_assume_pytest_is_installed():
     }
     objects = SimpleNamespace(
         entries=lambda *args: [
-            {"path": path, "oid": path, "mode": "100644", "kind": "blob"}
-            for path in contents
+            {"path": path, "oid": path, "mode": "100644", "kind": "blob"} for path in contents
         ],
         blob=lambda repository, oid: contents[oid],
     )

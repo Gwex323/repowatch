@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from repowatch.domain.task_records import content_digest
+from repowatch.operations.locks import guarded
 
 ENCODING_VERSION = "l2-cosine-keywords-v1"
 
@@ -110,6 +111,7 @@ class MemoryIndex:
         finally:
             connection.close()
 
+    @guarded
     def rebuild(self):
         try:
             return self._rebuild()

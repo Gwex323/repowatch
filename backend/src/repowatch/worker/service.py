@@ -6,6 +6,7 @@ from repowatch.application.budgets import ProgressEvidenceUnavailable
 from repowatch.application.storage import ConflictError, StorageError
 from repowatch.application.task_records import block, required
 from repowatch.domain.budget import BudgetDenied, RenewalPlan
+from repowatch.operations.locks import guarded
 from repowatch.runtime.engine import FormalRuntime
 from repowatch.worker.diagnostics import DiagnosticRunner
 from repowatch.worker.heartbeat import ExecutionHeartbeat
@@ -17,6 +18,7 @@ class Worker:
         self.services, self.plan_factory = services, plan_factory
         self.runtime = FormalRuntime(services)
 
+    @guarded
     def run_once(self):
         services = self.services
         from repowatch.worker.memory import MemoryWorker
@@ -215,6 +217,20 @@ class Worker:
             except StorageError:
                 return {"state": "reconciliation_required", "run_id": token.run_id}
             except PermissionError as error:
+                with services.store.read() as records:
+                    current_run = required(records, "runs", id=token.run_id)
+                    current_task = required(records, "tasks", id=current_run["task_id"])
+                    stopping = (
+                        current_task["stop_requested"] and not current_task["cancel_requested"]
+                    )
+                if stopping:
+                    try:
+                        services.queue.complete(
+                            token, now=services.clock(), state="waiting", wait_reason="safe_stop"
+                        )
+                    except PermissionError:
+                        return {"state": "reconciliation_required", "run_id": token.run_id}
+                    return {"state": "waiting", "reason": "safe_stop", "run_id": token.run_id}
                 reason = "scan_safety_boundary" if scan else "runtime_execution_rejected"
                 with services.store.write() as records:
                     run = required(records, "runs", id=token.run_id)
