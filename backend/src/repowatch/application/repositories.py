@@ -2,6 +2,7 @@ import json
 from uuid import uuid4
 
 from repowatch.application.budgets import human, remember_operation, replay_operation
+from repowatch.application.github_accounts import ACCOUNT_PREFIX, SECRET_PREFIX, GitHubAccountError
 from repowatch.application.queue_state import refresh_ready, settle_ready
 from repowatch.application.storage import ConflictError
 from repowatch.application.task_records import block, business_event, create_task, required
@@ -222,31 +223,66 @@ class RepositoryService:
     def preflight(self, operation_id, data, *, now, actor="local-user"):
         human(actor)
         require_time(now)
+        data = dict(data)
+        account_id = data.pop("github_account_id", None)
+        reference = data.get("credential_reference")
+        if isinstance(reference, str) and reference.casefold().startswith(
+            (ACCOUNT_PREFIX, SECRET_PREFIX)
+        ):
+            raise ValueError("请通过账号选择使用受管 GitHub 凭据")
+        if account_id is not None:
+            if (
+                reference is not None
+                or not isinstance(account_id, str)
+                or not account_id.startswith(ACCOUNT_PREFIX)
+            ):
+                raise ValueError("GitHub 账号与旧凭据引用只能选其一")
+            data["credential_reference"] = account_id
         request = RepositoryRequest.model_validate(data)
         payload = {"kind": "repository_preflight", "request": request.model_dump()}
         with self.store.read() as records:
             _, replay = replay_operation(records, operation_id, payload)
             if replay is not None:
                 return replay
+            account = records.one("github_accounts", id=account_id) if account_id else None
+        if account_id and account is None:
+            raise GitHubAccountError("github_account_missing", 404)
         identity = self.adapter_factory(request.credential_reference).contribution(request)
+        configuration = request.model_dump()
+        if account is not None:
+            if identity.get("execution_user_id") != account["github_user_id"]:
+                raise GitHubAccountError("github_account_mismatch")
+            configuration["account_secret_reference"] = account["secret_reference"]
         result = {"preflight_id": str(uuid4()), "identity": identity, "expires_at": now + 300}
         with self.store.write() as records:
             fingerprint, replay = replay_operation(records, operation_id, payload)
             if replay is not None:
                 return replay
+            self._require_current_account(records, configuration)
             remember_operation(records, operation_id, fingerprint, 1, result)
             records.add(
                 "repository_preflights",
                 {
                     "id": result["preflight_id"],
                     "operation_id": operation_id,
-                    "request_json": canonical_json(request.model_dump()),
+                    "request_json": canonical_json(configuration),
                     "identity_json": canonical_json(identity),
                     "created_at": now,
                     "expires_at": now + 300,
                 },
             )
         return result
+
+    @staticmethod
+    def _require_current_account(records, configuration):
+        reference = configuration["credential_reference"]
+        if reference.casefold().startswith(ACCOUNT_PREFIX):
+            account = records.one("github_accounts", id=reference)
+            if (
+                account is None
+                or configuration.get("account_secret_reference") != account["secret_reference"]
+            ):
+                raise GitHubAccountError("github_account_preflight_stale")
 
     def save(
         self,
@@ -278,6 +314,7 @@ class RepositoryService:
                 raise ConflictError("预检已过期，请重新核验路径")
             identity = json.loads(preflight["identity_json"])
             configuration = json.loads(preflight["request_json"])
+            self._require_current_account(records, configuration)
             old = records.one("repositories", github_id=identity["github_id"])
             current_scan_policy = ScanPolicy.model_validate(
                 scan_policy
@@ -294,12 +331,23 @@ class RepositoryService:
             identifier = old["id"] if old else stable_id("repository", identity["github_id"])
             revision = old["revision"] + 1 if old else 1
             epoch = old["import_epoch"] + 1 if old else 1
+            old_ref = (old["credential_reference"] or "") if old else ""
+            new_ref = configuration["credential_reference"]
+            selected_path = identity["contribution_path"]
+            stored_path = None if selected_path == "auto" else selected_path
+            stored_publication = (
+                None if selected_path == "auto" else canonical_json(identity["publication"])
+            )
+            account_changed = old_ref != new_ref and (
+                old_ref.startswith(ACCOUNT_PREFIX) or new_ref.startswith(ACCOUNT_PREFIX)
+            )
             target_changed = bool(
                 old
                 and (
                     old["target_branch"] != identity["target_branch"]
-                    or old["publication_json"] != canonical_json(identity["publication"])
-                    or old["contribution_path"] != identity["contribution_path"]
+                    or old["publication_json"] != stored_publication
+                    or old["contribution_path"] != stored_path
+                    or account_changed
                 )
             )
             policy_changed = bool(old and old["policy_json"] != canonical_json(policy))
@@ -325,8 +373,8 @@ class RepositoryService:
                 "scan_policy_json": canonical_json(current_scan_policy),
                 "policy_json": canonical_json(policy),
                 "identity_json": canonical_json(identity),
-                "publication_json": canonical_json(identity["publication"]),
-                "contribution_path": identity["contribution_path"],
+                "publication_json": stored_publication,
+                "contribution_path": stored_path,
                 "credential_reference": configuration["credential_reference"],
                 "scan_ready_sha": None,
                 "scan_ready_json": None,

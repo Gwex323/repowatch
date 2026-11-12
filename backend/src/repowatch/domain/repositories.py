@@ -82,7 +82,7 @@ class RepositoryRequest(BaseModel):
     def valid_path(self):
         if self.credential_reference is None:
             raise ValueError("仓库预检需要宿主 GitHub 凭据引用")
-        if self.contribution_path not in {"direct", "fork"}:
+        if self.contribution_path not in {"auto", "direct", "fork"}:
             raise ValueError("贡献路径无效")
         if self.contribution_path == "fork" and not (self.fork_owner and self.fork_name):
             raise ValueError("Fork 路径须指定发布仓库")

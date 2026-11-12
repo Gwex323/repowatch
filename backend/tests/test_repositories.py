@@ -37,7 +37,7 @@ def repositories(tmp_path):
             return httpx.Response(wire.status)
         path = request.url.path
         if path == "/user":
-            return httpx.Response(200, json={"login": "me"})
+            return httpx.Response(200, json={"login": "me", "id": 19})
         if "/branches/" in path:
             if wire.branch_status != 200:
                 return httpx.Response(wire.branch_status)
@@ -105,6 +105,22 @@ def test_fork_path_separate_identity_default_labels_and_relation_refusal(reposit
         register(service, "wrong", contribution_path="fork", fork_owner="me", fork_name="fork")
     with pytest.raises(GitHubReadError):
         register(service, "direct")
+
+
+def test_auto_registers_readable_repository_without_a_publish_target(repositories):
+    store, wire, service = repositories
+    wire.maintained = False
+    result = register(service, "auto", contribution_path="auto")
+    with store.read() as records:
+        repo = records.one("repositories", id=result["repository_id"])
+        assert repo["publication_json"] is None
+        assert json.loads(repo["identity_json"])["contribution_path"] == "auto"
+    assert result["policy"]["mode"] == "labels"
+    assert [request.url.path for request in wire.requests] == [
+        "/user",
+        "/repos/up/repo",
+        "/repos/up/repo/branches/main",
+    ]
 
 
 def test_fork_path_requires_configured_admission_labels(repositories):

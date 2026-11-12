@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { initialAmounts, initialize, labels, mutate, request, type Amounts, type Budget, type BusinessEvent, type Provider, type Reason, type Renewal, type State, type Task } from "./client";
+import { initialAmounts, initialize, labels, mutate, request, type Amounts, type Budget, type BusinessEvent, type Reason, type Renewal, type State, type Task } from "./client";
 import "./styles.css";
 import { Repositories } from "./Repositories";
+import { GitHubAccounts } from "./GitHubAccounts";
 import { PullRequestLifecycle } from "./PullRequestLifecycle";
 import { MemoryPanel } from "./Memory";
 import { OperationsPanel } from "./Operations";
+import { ProviderPanel, RolePanel } from "./ModelConfiguration";
 type Run = (action: () => Promise<unknown>, message?: string) => Promise<void>;
 const statusNames: Record<string, string> = { queued: "排队", running: "执行中", waiting: "等待", blocked: "阻塞", ended: "结束", cancelled: "取消", pending: "待批准", stale: "需刷新", approved: "已批准", rejected: "已拒绝", completed: "通过", failed: "失败", available: "可用", exhausted: "已耗尽", revoked: "已撤销", configuration_required: "待配置" };
 const textStatus = (value: string) => statusNames[value] ?? value;
@@ -57,121 +59,6 @@ function BudgetView({ budget }: {
 </tr>)}</tbody>
 </table>
 </>;
-}
-function ProviderPanel({ state, run }: {
-    state: State;
-    run: Run;
-}) {
-    const [edit, setEdit] = useState<Provider | null>(null);
-    const [name, setName] = useState("");
-    const [url, setUrl] = useState("");
-    const [api, setApi] = useState("chat_completions");
-    const [key, setKey] = useState("");
-    const [model, setModel] = useState("");
-    const [effort, setEffort] = useState("");
-    const [batch, setBatch] = useState("");
-    const [models, setModels] = useState<Record<string, unknown>>({});
-    const select = (provider: Provider) => { setEdit(provider); setName(provider.configuration.name); setUrl(provider.configuration.base_url); setApi(provider.configuration.api); setKey(""); setModel(provider.configuration.models[0]?.model ?? ""); setEffort(provider.configuration.models[0]?.reasoning_effort ?? ""); };
-    const save = (event: FormEvent) => { event.preventDefault(); void run(async () => { const payload = { name, base_url: url, api, ...(key ? { api_key: key } : {}), models: [...(model ? [{ model, ...(effort ? { reasoning_effort: effort } : {}) }] : []), ...(edit?.configuration.models.slice(1) ?? [])] }; const result = await mutate(edit ? `/providers/${edit.id}/edit` : "/providers/import", { payload }, edit?.revision); setKey(""); setEdit(null); return result; }, "供应商配置已保存；测试需单独发起。"); };
-    return <section>
-<h2>供应商配置</h2>
-<p className="muted">保存配置不会请求模型。模型列表不可用时，可以手填模型。</p>
-<div className="cards">
-{state.providers.map(provider => <article key={provider.id}>
-<h3>
-{provider.configuration.name}</h3>
-<p>
-{provider.configuration.api} · 配置 {provider.revision} · 凭据 {provider.credential_revision}</p>
-<p>
-{provider.configuration.base_url}</p>
-<div className="actions">
-<button onClick={() => select(provider)}>编辑</button>
-<button onClick={() => void run(async () => { const result = await mutate(`/providers/${provider.revision_id}/models`, {}); setModels(value => ({ ...value, [provider.id]: result })); }, "模型列表读取结束。")}>显式读取模型列表</button>
-</div>
-{models[provider.id] !== undefined && <Evidence value={models[provider.id]} title="模型列表结果"/>}</article>)}</div>
-    <form onSubmit={save}>
-<h3>
-{edit ? `编辑 ${edit.configuration.name}` : "新增供应商"}</h3>
-<div className="fields">
-<label>名称<input value={name} onChange={e => setName(e.target.value)} required/>
-</label>
-<label>API 地址<input type="url" value={url} onChange={e => setUrl(e.target.value)} required/>
-</label>
-<label>接口<select value={api} onChange={e => setApi(e.target.value)}>
-<option value="chat_completions">Chat Completions</option>
-<option value="responses">Responses</option>
-</select>
-</label>
-<label>密钥{edit ? "（留空沿用原修订）" : ""}<input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} required={!edit}/>
-</label>
-<label>首个模型（可手填，其余保留）<input value={model} onChange={e => setModel(e.target.value)}/>
-</label>
-<label>Reasoning effort（可选）<input value={effort} onChange={e => setEffort(e.target.value)}/>
-</label>
-</div>
-<button type="submit">保存配置</button>
-{edit && <button type="button" onClick={() => { setEdit(null); setKey(""); }}>取消编辑</button>}</form>
-    <form onSubmit={event => { event.preventDefault(); void run(async () => { const result = await mutate("/providers/import", { payload: batch }); setBatch(""); return result; }, "整批导入已完成。"); }}>
-<h3>JSON 整批新增</h3>
-<p className="muted">支持单对象、数组或 providers 包装；任何冲突整批拒绝。</p>
-<label>选择 JSON 文件<input type="file" accept=".json,application/json" onChange={event => { const file = event.target.files?.[0]; if (file)
-        void run(async () => { if (file.size > 2 * 1024 * 1024)
-            throw new Error("文件超过 2 MiB。"); setBatch(await file.text()); }); }}/>
-</label>
-<label>JSON 文本<textarea value={batch} onChange={event => setBatch(event.target.value)} required spellCheck={false}/>
-</label>
-<button type="submit">整批新增</button>
-</form>
-  </section>;
-}
-function RolePanel({ state, run }: {
-    state: State;
-    run: Run;
-}) {
-    const [binding, setBinding] = useState("processor");
-    const [role, setRole] = useState("processor");
-    const [providerId, setProviderId] = useState(state.providers[0]?.id ?? "");
-    const [model, setModel] = useState("");
-    const [effort, setEffort] = useState("");
-    return <section>
-<h2>角色与模型</h2>
-<p className="muted">处理、独审和子任务可分别绑定模型；新运行使用新配置，旧运行保留原快照。连接成功不会自动判定角色就绪。</p>
-<div className="cards">
-{state.roles.map(item => <article key={item.binding_key}>
-<h3>
-{item.binding_key}</h3>
-<p>
-{item.definition.selection.model} · 修订 {item.revision}</p>
-<button onClick={() => { setBinding(item.binding_key); setRole(item.definition.role); setProviderId(item.definition.provider_id); setModel(item.definition.selection.model); setEffort(item.definition.selection.reasoning_effort ?? ""); }}>编辑绑定</button>
-</article>)}</div>
-<form onSubmit={event => { event.preventDefault(); void run(() => mutate(`/roles/${binding}`, { definition: { role, provider_id: providerId, selection: { model, reasoning_effort: effort || null } } }, state.roles.find(item => item.binding_key === binding)?.revision ?? 0), "角色绑定已保存，需核对对应能力。"); }}>
-<div className="fields">
-<label>绑定标识<input value={binding} onChange={e => setBinding(e.target.value)} list="binding-keys" required/>
-<datalist id="binding-keys">
-<option value="processor"/>
-<option value="reviewer"/>
-<option value="subtask.investigator"/>
-</datalist>
-</label>
-<label>角色<select value={role} onChange={e => setRole(e.target.value)}>
-<option value="processor">处理</option>
-<option value="reviewer">独审</option>
-</select>
-</label>
-<label>供应商<select value={providerId} onChange={e => setProviderId(e.target.value)} required>
-<option value="">请选择</option>
-{state.providers.map(item => <option key={item.id} value={item.id}>
-{item.configuration.name}</option>)}</select>
-</label>
-<label>模型<input value={model} onChange={e => setModel(e.target.value)} required/>
-</label>
-<label>Reasoning effort<input value={effort} onChange={e => setEffort(e.target.value)}/>
-</label>
-</div>
-<button type="submit">保存角色绑定</button>
-</form>
-<Evidence value={state.capabilities} title="能力核验范围与有效期"/>
-</section>;
 }
 function DiagnosticPanel({ state, run }: {
     state: State;
@@ -492,7 +379,7 @@ export default function App() {
 {error}</p>}{message && <p className="notice success" role="status">
 {message}</p>}{busy && <p className="muted">正在保存并核对结果…</p>}</div>
 {state && <main aria-busy={busy}>
-{tab === "operations" && <OperationsPanel run={run}/>}
+{tab === "operations" && <><GitHubAccounts accounts={state.github_accounts ?? []} run={run}/><OperationsPanel run={run}/></>}
 {tab === "memory" && <MemoryPanel state={state} run={run}/>}
 {tab === "tasks" && <div className="task-layout">
 <section>

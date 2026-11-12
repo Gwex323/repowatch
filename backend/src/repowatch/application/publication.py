@@ -11,6 +11,11 @@ from repowatch.application.acceptance import acceptance_view
 from repowatch.application.budgets import BudgetedExecutor
 from repowatch.application.github_reads import issue_input
 from repowatch.application.issue_context import IssueContexts
+from repowatch.application.publication_paths import (
+    publication_target,
+    recheck_automatic_target,
+    resolve_automatic_target,
+)
 from repowatch.application.task_records import business_event, execution_record, required
 from repowatch.domain.budget import BudgetAmounts
 from repowatch.domain.task_records import canonical_json, content_digest
@@ -98,9 +103,7 @@ class Publisher:
         port = GitHubPublisher(
             vault=services.vault, credential_reference=repository["credential_reference"]
         )
-        publication = json.loads(repository["publication_json"])
-        if publication["github_id"] != request["publication_id"]:
-            raise PermissionError("回执发布仓库身份不匹配")
+        publication = publication_target(repository, request)
         result = BudgetedExecutor(services.budgets, services.queue, clock=services.clock).execute(
             token,
             "publication-read-reconcile:" + uuid4().hex,
@@ -140,7 +143,8 @@ class Publisher:
             if binding and binding["state"] != "open":
                 raise PermissionError("受管 PR 已结束，不能重建或替换")
             inputs = json.loads(task["input_json"])
-            publication = json.loads(repository["publication_json"])
+            identity = json.loads(repository["identity_json"] or "{}")
+            automatic = identity.get("contribution_path") == "auto"
             intent = records.one("publication_intents", task_id=task["id"], kind="pull_request")
             acceptance = acceptance_view(records, task)
             triages = [
@@ -184,8 +188,26 @@ class Publisher:
         )
         branch = "repowatch/issue-" + str(inputs["number"]) + "-" + task["id"][:12]
         upstream_path = port._path(repository["github_owner"], repository["github_name"])
-        port._path(publication["owner"], publication["name"])
+        executor = BudgetedExecutor(services.budgets, services.queue, clock=services.clock)
         if intent is None:
+
+            def select_target():
+                self.evidence.require_current(token, session_id)
+                return resolve_automatic_target(port, services, token, repository)
+
+            publication = (
+                executor.execute(
+                    token,
+                    "publication-target:" + uuid4().hex,
+                    BudgetAmounts(active_ms=180000),
+                    select_target,
+                    lambda _: {},
+                    purpose="publish",
+                )
+                if automatic
+                else json.loads(repository["publication_json"])
+            )
+            port._path(publication["owner"], publication["name"])
             identifier = str(uuid4())
             marker = "<!-- repowatch-publication:" + identifier + " -->"
             evidence = json.loads(session["evidence_json"])
@@ -196,12 +218,15 @@ class Publisher:
                 "base_sha": frozen["base_sha"],
                 "upstream_id": repository["github_id"],
                 "publication_id": publication["github_id"],
-                "execution_login": json.loads(repository["identity_json"])["execution_login"],
+                "execution_login": identity["execution_login"],
                 "branch": branch,
                 "marker": marker,
                 "title": "RepoWatch: fix issue #" + str(inputs["number"]),
                 "body": pr_body(inputs["number"], evidence, marker, source),
             }
+            if automatic:
+                request["publication"] = publication
+                request["execution_user_id"] = identity["execution_user_id"]
             with services.store.write() as records:
                 execution_record(records, token, services.clock())
                 records.add(
@@ -221,6 +246,8 @@ class Publisher:
             intent = {"id": identifier, "state": "intent", "request_json": canonical_json(request)}
         else:
             request = json.loads(intent["request_json"])
+            publication = publication_target(repository, request)
+            port._path(publication["owner"], publication["name"])
             if request["head_sha"] != frozen["sha"]:
                 if intent["state"] != "confirmed" or not binding:
                     raise PermissionError("已有发布意图属于其他候选，必须先对账")
@@ -291,7 +318,6 @@ class Publisher:
                     "state": "intent",
                     "request_json": canonical_json(request),
                 }
-        executor = BudgetedExecutor(services.budgets, services.queue, clock=services.clock)
         if intent["state"] in {"dispatched", "unknown", "confirmed"}:
             result = executor.execute(
                 token,
@@ -310,6 +336,15 @@ class Publisher:
 
         def send():
             self.evidence.require_current(token, session_id)
+            if request.get("publication"):
+                identity = json.loads(repository["identity_json"])
+                if (
+                    request["execution_user_id"] != identity["execution_user_id"]
+                    or request["execution_login"].casefold()
+                    != identity["execution_login"].casefold()
+                ):
+                    raise PermissionError("原 PR 发布身份已变化，不能换账号继续发布")
+                recheck_automatic_target(port, repository, publication)
             upstream = port.repository(repository["github_owner"], repository["github_name"])
             target = port.repository(publication["owner"], publication["name"])
             if (
@@ -317,26 +352,27 @@ class Publisher:
                 or target["github_id"] != request["publication_id"]
             ):
                 raise PermissionError("发布身份发生变化")
+            objects = self.evidence.workspaces.backend.objects
+            bare = objects.repository(repository["id"])
+            remote = (
+                "https://github.com/" + publication["owner"] + "/" + publication["name"] + ".git"
+            )
+            reference = repository["credential_reference"]
+            refs = objects.run(
+                bare,
+                "ls-remote",
+                remote,
+                "refs/heads/" + branch,
+                secret=services.vault.read(reference),
+            )
+            observed = refs.decode().split()[0] if refs.strip() else ""
+            if observed != request.get("expected_old_sha", ""):
+                raise PermissionError("受管分支已存在，禁止覆盖外部内容")
+            services.queue.guard(token, now=services.clock(), purpose="boundary")
             with services.store.write() as records:
                 execution_record(records, token, services.clock())
                 records.change("publication_intents", {"id": intent["id"]}, {"state": "dispatched"})
             try:
-                objects = self.evidence.workspaces.backend.objects
-                bare = objects.repository(repository["id"])
-                refs = objects.run(
-                    bare,
-                    "ls-remote",
-                    "https://github.com/"
-                    + publication["owner"]
-                    + "/"
-                    + publication["name"]
-                    + ".git",
-                    "refs/heads/" + branch,
-                    secret=services.vault.read(repository["credential_reference"]),
-                )
-                observed = refs.decode().split()[0] if refs.strip() else ""
-                if observed != request.get("expected_old_sha", ""):
-                    raise PermissionError("受管分支已存在，禁止覆盖外部内容")
                 objects.run(
                     bare,
                     "push",
@@ -344,13 +380,9 @@ class Publisher:
                     + branch
                     + ":"
                     + request.get("expected_old_sha", ""),
-                    "https://github.com/"
-                    + publication["owner"]
-                    + "/"
-                    + publication["name"]
-                    + ".git",
+                    remote,
                     frozen["sha"] + ":refs/heads/" + branch,
-                    secret=services.vault.read(repository["credential_reference"]),
+                    secret=services.vault.read(reference),
                 )
                 if request.get("pr_number"):
                     port.write(

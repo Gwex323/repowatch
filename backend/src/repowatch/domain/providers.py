@@ -45,6 +45,16 @@ class ProviderModel(Contract):
         return value
 
 
+class ModelDiscovery(Contract):
+    base_url: str = Field(min_length=1, max_length=500)
+    api_key: SecretStr
+
+    @field_validator("base_url")
+    @classmethod
+    def url_value(cls, value):
+        return validate_url(value)
+
+
 class ProviderInput(Contract):
     name: str = Field(min_length=1, max_length=100)
     base_url: str = Field(min_length=1, max_length=500)

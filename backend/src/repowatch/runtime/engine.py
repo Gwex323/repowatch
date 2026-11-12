@@ -271,6 +271,11 @@ class FormalRuntime:
                         if old and old["state"] == "ended" and completed:
                             value = self._saved_result(completed[-1], saver)
                         else:
+                            if (
+                                child.role_key not in ("processor", "reviewer")
+                                and child.role_key not in snapshot["roles"]
+                            ):
+                                child = replace(child, role_key=plan.role_key)
                             child_token = self.delegation.start(
                                 token,
                                 child_id,

@@ -71,6 +71,41 @@ def mutation(key, revision=None, **data):
     return {"operation_id": key, "expected_revision": revision, "data": data}
 
 
+def test_draft_model_discovery_is_explicit_read_without_saving_provider(api):
+    client, headers, services, _ = api
+    calls = []
+    secret = "draft-fixture-key-only"
+
+    def handle(request):
+        calls.append(request)
+        assert request.method == "GET"
+        assert str(request.url) == "https://fixture.invalid/v1/models"
+        assert request.headers["authorization"] == "Bearer " + secret
+        return httpx.Response(200, json={"data": [{"id": "fixture-model"}]})
+
+    services.adapter.transport = httpx.MockTransport(handle)
+    endpoint = "/api/v1/providers/discover"
+    body = mutation("draft-discovery", base_url="https://fixture.invalid/v1/", api_key=secret)
+    assert client.post(endpoint, headers={"Origin": ORIGIN}, json=body).status_code == 403
+    assert calls == []
+    response = client.post(endpoint, headers=headers, json=body)
+    assert response.status_code == 200
+    assert response.json() == {"models": ["fixture-model"], "available": True, "error": None}
+    assert len(calls) == 1
+    with services.store.read() as records:
+        assert records.find("providers") == []
+        assert records.find("provider_revisions") == []
+        assert records.one("user_operations", id="draft-discovery") is None
+
+    invalid = mutation(
+        "invalid-discovery", base_url="https://name:secret@fixture.invalid", api_key=secret
+    )
+    response = client.post(endpoint, headers=headers, json=invalid)
+    assert response.status_code == 422
+    assert secret not in response.text
+    assert len(calls) == 1
+
+
 def test_task_artifact_read_is_scoped_and_has_no_execution_side_effect(api):
     client, _, services, _ = api
     repository = services.tasks.register_repository("artifact-view", admission_mode="all_bugs")

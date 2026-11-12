@@ -5,6 +5,7 @@ import re
 
 from repowatch.adapters.github import GitHubReadAdapter
 from repowatch.application.budgets import remember_operation, replay_operation
+from repowatch.application.publication_paths import publication_target
 from repowatch.application.safety import assert_quiescent
 from repowatch.application.storage import ConflictError
 from repowatch.application.task_records import bump_task, business_event, required
@@ -29,6 +30,10 @@ class RestoreReconciliation:
             repositories = [dict(row) for row in records.find("repositories")]
             tasks = [dict(row) for row in records.find("tasks")]
             bindings = [dict(row) for row in records.find("managed_pull_requests")]
+            pr_intents = {
+                row["task_id"]: json.loads(row["request_json"])
+                for row in records.find("publication_intents", kind="pull_request")
+            }
             revisions = [dict(row) for row in records.find("provider_revisions", state="active")]
             workspaces = [dict(row) for row in records.find("workspaces")]
         credentials, remote, candidates, failures = [], [], [], []
@@ -64,7 +69,7 @@ class RestoreReconciliation:
             pulls = port.collection(
                 port._path(owner, name) + "/pulls", params={"state": "all"}, max_pages=100
             )
-            publication = json.loads(repository["publication_json"] or "{}")
+            configured = json.loads(repository["publication_json"] or "null")
             login = json.loads(repository["identity_json"] or "{}").get("execution_login")
             observed = []
             for pull in pulls:
@@ -91,11 +96,19 @@ class RestoreReconciliation:
                     expected_branch = f"repowatch/issue-{number}-" + task["id"][:12]
                     if pull["head"].get("ref") != expected_branch:
                         continue
+                    request = pr_intents.get(task["id"])
+                    try:
+                        publication = (
+                            publication_target(repository, request) if request else configured
+                        )
+                    except PermissionError:
+                        failures.append("remote_binding_identity_requires_review")
+                        continue
                     if (
                         str(pull["base"].get("repo", {}).get("id")) != repository["github_id"]
                         or pull["base"].get("ref") != repository["target_branch"]
                         or str(pull["head"].get("repo", {}).get("id"))
-                        != publication.get("github_id")
+                        != (publication or {}).get("github_id")
                         or pull.get("user", {}).get("login") != login
                         or not re.search(
                             r"<!-- repowatch-publication:[0-9a-f-]{36} -->", pull.get("body") or ""

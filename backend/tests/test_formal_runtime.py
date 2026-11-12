@@ -72,7 +72,7 @@ def fixture_wire(*, child=False, wrong=False, forbidden=False, status="completed
         )
         tool_results = [item for item in body["messages"] if item["role"] == "tool"]
         if not tool_results:
-            if child and body["model"] == "model":
+            if child and envelope["parent_run_id"] is None:
                 name, args = (
                     "task",
                     {"description": "Run the bound read task", "subagent_type": "child-read"},
@@ -447,12 +447,14 @@ def test_wrong_context_and_unregistered_builtin_cannot_complete(kernel, wrong, f
         assert records.find("stage_intents", run_id=token.run_id)[0]["state"] == "intent"
 
 
-def test_serial_child_has_independent_run_model_and_shared_ledger(kernel):
+@pytest.mark.parametrize("child_model", [None, "child-model"], ids=["inherits", "explicit"])
+def test_serial_child_selects_model_and_shares_ledger(kernel, child_model):
     k = kernel
     bind(k)
-    bind(k, "subtask.investigator", model="child-model")
     diagnose(k, "processor")
-    diagnose(k, "processor", key="child-model-capability", model="child-model")
+    if child_model:
+        bind(k, "subtask.investigator", model=child_model)
+        diagnose(k, "processor", key="child-model-capability", model=child_model)
     task, token = start(k)
     wire, calls = fixture_wire(child=True)
     reads = []
@@ -469,13 +471,23 @@ def test_serial_child_has_independent_run_model_and_shared_ledger(kernel):
     parent = plan(reads, children=(child,))
     result = FormalRuntime(services(k, wire), wait=lambda _: None).run(token, parent)
     assert result.context.run_id == token.run_id
-    assert [item["model"] for item in calls] == ["model", "child-model", "child-model", "model"]
+    expected_child_model = child_model or "model"
+    assert [item["model"] for item in calls] == [
+        "model",
+        expected_child_model,
+        expected_child_model,
+        "model",
+    ]
     assert reads == ["fixture.py"]
     assert k.budgets.view(task)["used"]["model_calls"] == 4
     with k.store.read() as records:
         children = records.find("runs", parent_run_id=token.run_id)
         assert len(children) == 1 and children[0]["state"] == "ended"
         assert children[0]["budget_owner_task_id"] == task
+        child_snapshot = json.loads(children[0]["snapshot_json"])
+        assert child_snapshot["delegated_role_key"] == (
+            "subtask.investigator" if child_model else "processor"
+        )
         assert records.one("runs", id=token.run_id)["active_child_run_id"] is None
 
 
