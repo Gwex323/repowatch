@@ -227,20 +227,82 @@ node experiments\p6-browser.mjs
 
 ## 项目结构
 
+仓库按控制面、应用用例、领域模型、宿主适配器、Agent 运行、前端界面和验收入口分层。业务逻辑不直接依赖 SQLite、Docker 或具体 SDK，外部能力通过适配器接入。
+
 ```text
-backend/
-  migrations/        SQLite / Alembic 迁移
-  src/repowatch/     API、应用服务、Worker、适配器与运行引擎
-  tests/             后端单元、集成和故障恢复测试
-frontend/
-  src/               React 仓库工作台与控制界面
-experiments/         扫描、修复、浏览器和安装验收入口
-docs/
-  context/           当前状态、目录映射与操作入口
-  development/       开发、运行、持久化、记忆和本地运维说明
-  adr/               架构决策记录
-openspec/            规格、设计、任务和验收场景
-scripts/             发行打包与安装脚本
+repowatch/
+├── backend/
+│   ├── migrations/versions/     业务库与检查点迁移
+│   ├── src/repowatch/
+│   │   ├── api/                 FastAPI 路由、会话、同源界面与只读同步
+│   │   ├── application/         扫描、分诊、修复、发布、预算、恢复与阻塞用例
+│   │   ├── domain/              任务、仓库、预算、扫描和 PR 等领域模型
+│   │   ├── adapters/            SQLite、Docker、原生宿主、Git、GitHub、模型与凭据
+│   │   ├── runtime/             LangGraph 运行引擎、阶段核验和检查点交接
+│   │   ├── worker/              串行调度、扫描、分诊、修复、独审和记忆执行
+│   │   ├── operations/          安装、迁移、启停、备份、恢复、清理和诊断
+│   │   ├── configuration.py     数据目录及运行配置
+│   │   └── security.py          密钥、敏感字段和日志脱敏
+│   └── tests/                   单元、集成、迁移、故障恢复和浏览器夹具后端
+├── frontend/
+│   └── src/
+│       ├── App.tsx              全局导航、任务详情和人工控制
+│       ├── RepositoryWorkbench.tsx  仓库进度、分析与配置入口
+│       ├── Scans.tsx            扫描覆盖、候选发现与 Issue 追踪
+│       ├── TaskEvidence.tsx     查重比较、范围决定和修复证据
+│       ├── PullRequestLifecycle.tsx 受管 PR、CI 与评审状态
+│       ├── Memory.tsx           仓库记忆与全局索引管理
+│       ├── Repositories.tsx     仓库登记、账号和执行策略
+│       ├── ModelConfiguration.tsx   供应商和角色模型配置
+│       └── workbench.css        工作台布局、表格和响应式样式
+├── experiments/                 扫描、修复、安装和无头浏览器验收入口
+├── docs/
+│   ├── context/                 当前状态、目录映射、RUNBOOK 与历史入口
+│   ├── development/             运行、持久化、扫描、记忆和本地运维说明
+│   ├── adr/                     架构决策记录
+│   └── research/                外部项目与实现研究
+├── openspec/changes/            规格变更、设计、任务和验收场景
+├── scripts/                     发行打包与安装脚本
+├── AGENTS.md                    项目协作与实现规则
+├── PROJECT_INDEX.md             按任务查找权威文档的入口
+├── README.md                    项目概览和快速开始
+└── GLOSSARY.md                  项目术语表
+```
+
+### 关键调用路径
+
+```mermaid
+flowchart LR
+    UI[React 工作台] --> API[FastAPI 控制面]
+    API --> APP[应用用例]
+    APP --> DB[(业务数据库与检查点)]
+    APP --> QUEUE[持久任务队列]
+    QUEUE --> WORKER[单执行位 Worker]
+    WORKER --> ADAPTER[Git、GitHub、Docker 或原生适配器]
+    WORKER --> ARTIFACT[(冻结产物与证据)]
+    ARTIFACT --> UI
+```
+
+- API 负责配置、人工决定、状态投影和只读同步，不直接执行重任务。
+- 持久任务队列保存任务修订、预算归属和执行条件，由 Worker 串行领取。
+- Worker 通过受控适配器读取仓库、创建隔离工作区、调用模型并保存验证证据。
+- 业务数据库是任务、决定和交付状态的权威来源，前端刷新时重新读取持久状态。
+- 模型调用、仓库命令和远端写入不放在数据库长事务内。
+
+### 运行时数据目录
+
+发行版使用独立绝对数据目录，目录中的主要文件如下。
+
+```text
+<data-directory>/
+├── business.sqlite3       仓库、任务、运行、预算和人工决定
+├── checkpoints.sqlite3    LangGraph 运行检查点
+├── artifacts/             不可变日志、审查和验证证据
+├── git-objects/           宿主受管 Git 对象
+├── memory-index.sqlite3   可重建的仓库记忆检索索引
+├── workspaces/            工作区元数据
+├── backups/               已完成核验的一致备份
+└── runtime/               服务状态、短期引导和受管进程日志
 ```
 
 ## 当前状态与限制
