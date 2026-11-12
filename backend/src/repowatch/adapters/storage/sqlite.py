@@ -13,7 +13,7 @@ from repowatch.application.storage import ConflictError, RecordPort, SchemaMisma
 from repowatch.configuration import StorageSettings
 from repowatch.operations.locks import FileLock, data_lock
 
-SCHEMA_REVISION = "0028_github_accounts"
+SCHEMA_REVISION = "0029_repository_removal"
 
 
 def sqlite_engine(settings: StorageSettings, *, create: bool = False):

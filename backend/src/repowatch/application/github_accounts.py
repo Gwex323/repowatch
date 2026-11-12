@@ -160,7 +160,10 @@ class GitHubAccounts:
     def disconnect(self, identifier, revision):
         with self.store.write() as records:
             row = self._current(records, identifier, revision)
-            if records.find("repositories", credential_reference=identifier):
+            if any(
+                not row["removed"]
+                for row in records.find("repositories", credential_reference=identifier)
+            ):
                 raise GitHubAccountError("github_account_in_use")
             records.remove("github_accounts", id=identifier)
         self._cleanup(row["secret_reference"])

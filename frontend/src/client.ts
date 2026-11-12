@@ -11,6 +11,14 @@ export type Budget = {
 export type Task = {
     id: string;
     repository_id: string | null;
+    issue_id?: string | null;
+    input_revision?: number;
+    feedback_revision?: number;
+    triage_reason?: string;
+    similar_issue_number?: number;
+    scope?: { context_digest: string; goals: string[]; can_split: boolean; can_decide: boolean } | null;
+    scope_children?: Array<{ source_key: string; task_id: string }>;
+    delivery?: { number: number; delivery_state: string; ci_state: string } | null;
     mode: string;
     state: string;
     revision: number;
@@ -18,10 +26,10 @@ export type Task = {
     outcome: string | null;
     acceptance_revision?: number;
     acceptance?: { revision: number; kind: "bug" | "feature" | "refactor"; content: Record<string, unknown>; approved_revision: number | null; approved_by: string | null; current: boolean; approved: boolean; approval_source_revision?: number | null } | null;
-    triage_decisions?: Array<{ id: string; result: string; reason_code: string; evidence: Record<string, unknown>; input_revision: number; admission_revision: number }>;
+    triage_decisions?: Array<{ id: string; result: string; reason_code: string; evidence: Record<string, unknown>; input_revision: number; feedback_revision?: number; admission_revision: number; created_at?: number }>;
     issue_context?: { digest: string; facts: { issue: Record<string, unknown>; comments: unknown[]; pull_requests: Array<{ id: number; number: number; title: string; html_url: string; state: string }> } } | null;
     publication_intents?: Array<{id: string; kind: string; state: string; request: Record<string, unknown>; result: Record<string, unknown> | null}>;
-    repair_sessions?: Array<{id: string; state: string; frozen: Record<string, unknown> | null; evidence: Record<string, unknown> | null}>;
+    repair_sessions?: Array<{id: string; state: string; current_context: boolean; frozen: Record<string, unknown> | null; evidence: Record<string, unknown> | null}>;
     relation_decisions?: unknown[];
     candidate_issue_decisions?: unknown[];
     distillation_intents?: unknown[];
@@ -70,6 +78,7 @@ export type Reason = {
     code: string;
     revision: number;
     details: Record<string, unknown>;
+    guidance?: { title: string; description: string; stage: string; suggestions: string[] };
 };
 export type Renewal = {
     id: string;
@@ -107,6 +116,8 @@ export type State = {
     repositories: Array<{
         id: string;
         github_id: string;
+        removed?: number;
+        removed_at?: number | null;
         paused: number;
         revision: number;
         github_owner?: string;

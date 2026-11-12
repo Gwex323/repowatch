@@ -177,7 +177,7 @@ class GitHubSynchronization:
             repositories = {
                 row["id"]: dict(row)
                 for row in records.find("repositories")
-                if row["identity_json"] is not None
+                if row["identity_json"] is not None and not row["removed"]
             }
             candidates = []
             for identifier in repositories:

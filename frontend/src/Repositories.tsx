@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from "react";
 import { mutate, type State } from "./client";
-import { Scans } from "./Scans";
 import { Synchronization } from "./Synchronization";
 
 type Preflight = { preflight_id: string; identity: { github_id: string } };
@@ -14,7 +13,7 @@ function parseRepositoryUrl(value: string) {
     return { owner, name };
 }
 
-export function Repositories({ state, run, openTask }: { state: State; run: (action: () => Promise<unknown>, message?: string) => Promise<void>; openTask: (id: string) => void }) {
+export function Repositories({ state, run, repositoryId }: { state: State; run: (action: () => Promise<unknown>, message?: string) => Promise<void>; repositoryId?: string }) {
     const [repositoryUrl, setRepositoryUrl] = useState("");
     const [target, setTarget] = useState("");
     const [path, setPath] = useState("auto");
@@ -64,7 +63,8 @@ export function Repositories({ state, run, openTask }: { state: State; run: (act
         }, "仓库已登记并排入完整扫描；如需运行，请在任务页配置预算。")
             .finally(() => setRegistering(false));
     };
-    return <section><h2>仓库登记与配置</h2>
+    return <section className="workbench-panel"><h2>{repositoryId ? "仓库运行配置" : "登记仓库"}</h2>
+        {(!repositoryId || loadedRepository) && <>
         <p>每次导入都登记新的完整扫描。目标变化后已有任务及 PR 保留原目标，等待明确处理。</p>
         <form onSubmit={register}>
             <div className="fields">
@@ -80,7 +80,7 @@ export function Repositories({ state, run, openTask }: { state: State; run: (act
                 {account === "legacy" && <label>宿主 GitHub 凭据引用<input value={reference} onChange={event => setReference(event.target.value)} required /></label>}
             </div>
             {path === "auto" && <p>登记时只读取仓库。获准发布 PR 时，有上游推送权限就用上游分支，否则按需复用或创建你的 Fork。</p>}
-            {!accounts.length && <p>可在「系统与维护」绑定 GitHub 账号，登记仓库时直接选用。</p>}
+            {!accounts.length && <p>可在「设置与维护 → GitHub 账号」绑定账号，登记仓库时直接选用。</p>}
             {loadedRepository && <details key={loadedRepository.id}><summary>准入与扫描策略（可选）</summary>
             <div className="fields">
                 <label>准入模式<select value={mode} onChange={event => setMode(event.target.value)}><option value="">默认</option><option value="manual">手动选择</option><option value="labels">标签准入</option><option value="all_bugs">全部合格 Bug</option></select></label>
@@ -96,12 +96,11 @@ export function Repositories({ state, run, openTask }: { state: State; run: (act
             {claim && <blockquote>{template}</blockquote>}
             </details>}
             <button disabled={registering}>{loadedRepository ? "保存仓库配置" : "登记仓库"}</button>
-        </form>
-        {state.repositories.map(repository => <article key={repository.id}><h3>{repository.github_owner}/{repository.github_name || repository.github_id}</h3>
+        </form></>}
+        {state.repositories.filter(repository => repository.id === repositoryId).map(repository => <article key={repository.id}><h3>{repository.github_owner}/{repository.github_name || repository.github_id}</h3>
             <p>修订 {repository.revision} · 导入代次 {repository.import_epoch} · 目标 {repository.target_branch || "未配置"}</p>
             <p>扫描就绪：{repository.scan_ready_sha || "未就绪"} · {repository.policy?.mode ?? "待配置"}</p>
             {repository.credential_reference && <p>执行账号：{accounts.find(item => item.id === repository.credential_reference)?.login ?? repository.identity?.execution_login ?? "旧凭据"}</p>}
-            <Scans repositoryId={repository.id} run={run} openTask={openTask} />
             <Synchronization repository={repository} run={run} />
             <button onClick={() => {
                 setRepositoryUrl(repository.github_owner && repository.github_name
@@ -122,6 +121,14 @@ export function Repositories({ state, run, openTask }: { state: State; run: (act
                 setTemplate(policy?.claim_template ?? "RepoWatch 将按已确认范围处理此 Issue。");
             }}>编辑仓库配置</button>
             <button onClick={() => void run(() => mutate(`/control/${repository.paused ? "resume" : "pause"}`, { repository_id: repository.id }, repository.revision))}>{repository.paused ? "显式恢复仓库" : "暂停仓库"}</button>
+            <details>
+                <summary>从工作台移除</summary>
+                <p>只移除本地工作台入口并停止后续任务；GitHub 仓库、Issue、PR 和已有审计证据不会被删除。</p>
+                <button onClick={() => void run(
+                    () => mutate(`/repositories/${encodeURIComponent(repository.id)}/remove`, {}, repository.revision),
+                    "仓库已从本机工作台移除；GitHub 远端未发生变化。",
+                )}>确认移除本地记录</button>
+            </details>
         </article>)}
     </section>;
 }

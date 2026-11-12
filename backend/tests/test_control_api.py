@@ -71,6 +71,147 @@ def mutation(key, revision=None, **data):
     return {"operation_id": key, "expected_revision": revision, "data": data}
 
 
+def test_one_click_resolution_checks_environment_and_preserves_other_blocks(api, monkeypatch):
+    from repowatch.adapters.docker_workspaces import WorkspaceError
+    from repowatch.application.task_records import block, bump_task
+    from repowatch.domain.budget import BudgetAmounts
+    from repowatch.domain.task_records import stable_id
+
+    client, headers, services, _ = api
+    repository = services.tasks.register_repository("block-resolution", admission_mode="all_bugs")
+    task = services.tasks.ensure_task(repository, "scan", mode="scan", now=0)
+    services.budgets.authorize_initial(
+        "resolution-budget",
+        task,
+        BudgetAmounts(
+            active_ms=600000, model_calls=10, tokens=10000, repair_rounds=5, recovery_rounds=5
+        ),
+        expected_revision=1,
+        reason="test",
+        now=0,
+    )
+    with services.store.write() as records:
+        block(
+            records,
+            "runtime_execution_rejected",
+            task,
+            now=0,
+            diagnosis="docker_unavailable",
+            detail="无法连接 Docker 引擎",
+            stage="创建扫描工作区",
+        )
+        bump_task(
+            records,
+            records.one("tasks", id=task),
+            state="blocked",
+            outcome="runtime_execution_rejected",
+        )
+        block(records, "service_exit_unconfirmed", None, now=0)
+    reason = stable_id("block", task, "runtime_execution_rejected")
+    path = f"/api/v1/reasons/{reason}/resolve"
+    checks = []
+
+    def unavailable(*args):
+        checks.append(args)
+        raise WorkspaceError("无法连接 Docker 引擎", diagnosis="docker_unavailable")
+
+    monkeypatch.setattr("repowatch.application.control.check_environment", unavailable)
+    body = mutation("check-failed", 1, automatic=True)
+    assert client.post(path, json=body).status_code == 403
+    failed = client.post(path, json=body, headers=headers)
+    assert failed.status_code == 200, failed.text
+    assert failed.json()["resolved"] is False
+    assert "Docker" in failed.json()["message"]
+    assert client.post(path, json=body, headers=headers).json() == failed.json()
+    assert len(checks) == 1
+    state = client.get("/api/v1/state").json()
+    displayed = next(row for row in state["reasons"] if row["id"] == reason)
+    assert displayed["revision"] == 2
+    assert displayed["guidance"]["title"] == "无法连接 Docker 引擎"
+    assert displayed["guidance"]["suggestions"]
+    monkeypatch.setattr("repowatch.application.control.check_environment", lambda *args: None)
+    stale = client.post(path, json=mutation("stale", 1, automatic=True), headers=headers)
+    assert stale.status_code == 409
+    resolved = client.post(path, json=mutation("check-passed", 2, automatic=True), headers=headers)
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["resolved"] and resolved.json()["global_paused"]
+    with services.store.read() as records:
+        permit = records.find("retry_authorizations", task_id=task)[0]
+        assert json.loads(permit["limits_json"])["max_attempts"] == 1
+        assert records.one("budget_ledgers", owner_task_id=task)["limits_json"]
+    other = stable_id("block", "global", "service_exit_unconfirmed")
+    result = client.post(
+        f"/api/v1/reasons/{other}/resolve",
+        json=mutation("last-check", 1, automatic=True),
+        headers=headers,
+    )
+    assert result.status_code == 200, result.text
+    assert not result.json()["global_paused"]
+    assert (
+        client.post(
+            f"/api/v1/reasons/{other}/resolve",
+            json=mutation("last-check", 1, automatic=True),
+            headers=headers,
+        ).json()
+        == result.json()
+    )
+    with services.store.read() as records:
+        assert records.one("tasks", id=task)["state"] == "queued"
+        assert not records.find("runs")
+
+
+def test_docker_failures_keep_safe_diagnostics(monkeypatch):
+    import subprocess
+    from pathlib import Path
+
+    from repowatch.adapters.docker_workspaces import DockerWorkspaces, WorkspaceError
+    from repowatch.security import DEFAULT_REDACTOR
+
+    secret = "blocker-registered-test-secret"
+    from repowatch.application.credentials import SecretValue
+
+    DEFAULT_REDACTOR.register(SecretValue(secret))
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            [], 1, b"", f"failed to connect dockerDesktopLinuxEngine Bearer {secret}".encode()
+        ),
+    )
+    backend = object.__new__(DockerWorkspaces)
+    backend.executable = str(Path("docker"))
+    with pytest.raises(WorkspaceError) as caught:
+        backend.docker("image", "inspect", "alpine/git:latest")
+    assert caught.value.details["diagnosis"] == "docker_unavailable"
+    assert secret not in json.dumps(caught.value.details)
+    assert "dockerDesktopLinuxEngine" in caught.value.details["diagnostic_output"]
+
+
+def test_repository_removal_hides_local_workbench_records_and_keeps_audit(api):
+    client, headers, services, _ = api
+    repository = services.tasks.register_repository("removed-fixture", admission_mode="manual")
+    task = services.tasks.ensure_task(repository, "import:1", mode="scan", now=0)
+    path = f"/api/v1/repositories/{repository}/remove"
+    body = mutation("remove-fixture", 1)
+
+    response = client.post(path, headers=headers, json=body)
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "removed": True,
+        "repository_id": repository,
+        "revision": 2,
+    }
+    assert client.post(path, headers=headers, json=body).json() == response.json()
+    state = client.get("/api/v1/state").json()
+    assert repository not in {row["id"] for row in state["repositories"]}
+    assert task not in {row["id"] for row in state["tasks"]}
+    with services.store.read() as records:
+        stored = records.one("repositories", id=repository)
+        assert stored["removed"] == 1 and stored["paused"] == 1
+        assert records.one("tasks", id=task)["outcome"] == "repository_removed"
+        assert records.find("business_events", kind="repository_removed")
+
+
 def test_draft_model_discovery_is_explicit_read_without_saving_provider(api):
     client, headers, services, _ = api
     calls = []

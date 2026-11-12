@@ -27,8 +27,13 @@ class RestoreReconciliation:
             assert_quiescent(records, allow_unknown_remote=True)
             if not records.find("block_reasons", code="backup_restore_reconciliation", resolved=0):
                 raise PermissionError("当前没有待完成的备份恢复核对")
-            repositories = [dict(row) for row in records.find("repositories")]
-            tasks = [dict(row) for row in records.find("tasks")]
+            repositories = [dict(row) for row in records.find("repositories", removed=0)]
+            active_repositories = {row["id"] for row in repositories}
+            tasks = [
+                dict(row)
+                for row in records.find("tasks")
+                if row["repository_id"] in active_repositories
+            ]
             bindings = [dict(row) for row in records.find("managed_pull_requests")]
             pr_intents = {
                 row["task_id"]: json.loads(row["request_json"])

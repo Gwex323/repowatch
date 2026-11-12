@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { repositoryPage, taskById } from "./workbench-browser-navigation.mjs";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -29,8 +30,8 @@ try {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${port}/#session=${setup.bootstrap}`);
-  await expect(page.getByRole("heading", { name: "任务队列" })).toBeVisible();
-  await page.getByRole("button", { name: "仓库", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "仓库工作台" })).toBeVisible();
+  await repositoryPage(page, "fixture/p4-browser", "配置");
   await expect(page.getByRole("heading", { name: "GitHub 巡检" })).toBeVisible();
   await page.getByText("巡检与必要 CI 检查配置", {exact: true}).click();
   await page.getByLabel("活跃间隔（分钟）").fill("180");
@@ -51,10 +52,8 @@ try {
   await check();
   await expect.poll(() => page.evaluate(async () => (await (await fetch("/api/v1/state")).json()).repositories[0].target_sha)).toBe("d".repeat(40));
   await page.screenshot({path: resolve(root, "synchronization.png"), fullPage:true});
-  await page.getByRole("button", {name: "任务", exact:true}).click();
-  const index = await page.evaluate(async id => (await (await fetch("/api/v1/state")).json()).tasks.findIndex(task => task.id === id), setup.task_id);
-  await page.locator("button.task-row").nth(index).click();
-  await expect(page.getByRole("heading", {name:/受管 PR #2/})).toBeVisible();
+  await taskById(page, setup.task_id);
+  await expect(page.getByRole("heading", {name:"PR #2", exact:true})).toBeVisible();
   await expect(page.getByRole("link", {name:"GitHub CI 检查", exact:true})).toHaveAttribute("href", /\/pull\/2\/checks$/);
   await expect(page.getByRole("link", {name:"GitHub 评审与变更", exact:true})).toHaveAttribute("href", /\/pull\/2\/files$/);
   await expect(page.getByRole("link", {name:"GitHub 合并页", exact:true})).toHaveAttribute("href", /\/pull\/2#partial-pull-merging$/);

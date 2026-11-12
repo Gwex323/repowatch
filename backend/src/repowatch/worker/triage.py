@@ -70,6 +70,21 @@ class TriageCoordinator:
             task = dict(required(records, "tasks", id=run["task_id"]))
             repository = dict(required(records, "repositories", id=task["repository_id"]))
             issue_intent = records.one("publication_intents", task_id=task["id"], kind="issue")
+            from repowatch.application.issue_scopes import scope_children, split_authorized
+
+            held_for_children = bool(scope_children(records, task))
+            authorized = split_authorized(records, task)
+        if held_for_children or not authorized:
+            services.queue.complete(
+                token,
+                now=services.clock(),
+                state="waiting",
+                wait_reason="scope_children" if held_for_children else "human_information",
+            )
+            return {
+                "state": "waiting",
+                "reason": "scope_children" if held_for_children else "scope_authorization_changed",
+            }
         if issue_intent and issue_intent["state"] in {"unknown", "dispatched"}:
             candidates = CandidateIssues(services)
             target = candidates.resolve(
@@ -242,6 +257,8 @@ class TriageCoordinator:
             "对每个外部 PR 的描述及 patch 判断 same、unrelated 或 uncertain，"
             "在 pr_relations 记录稳定 id、relation 与 evidence；不能只按文件重叠判断。"
             "多独立目标须等待收敛／拆分；用户已明确收敛后按最新范围重评，"
+            "scope_origin 表示已确认拆分的单一目标；使用 confirmed_goal 的 objective 和 criteria，"
+            "不得重新纳入原 Issue 的其他目标。查重不得关联回原 Issue。"
             "不得把已删去目标继续写入 independent_goals。",
             mode="investigate",
             role_key="processor",
@@ -268,5 +285,8 @@ class TriageCoordinator:
             + canonical_json(lookup["facts"])
             + "；必须填写 issue_relation：relation 为 same、none 或 uncertain，"
             "有相似项确认相同则给出 issue_number，无相似才用 none，必须填写 evidence。"
+            "如有具体相似项但不能确认，使用 uncertain，并在 issue_number 填入"
+            "本次查询中最相关的编号；evidence 说明相似点及缺少的证据。"
+            "没有可指出的相似项时不要猜测编号。"
             "敏感披露未经明确确认不能公开。",
         )

@@ -464,7 +464,9 @@ class FormalRuntime:
                         stage_id=stage["id"],
                     )
             raise
-        except (ValueError, PermissionError, ProviderRequestError):
+        except (ValueError, PermissionError, ProviderRequestError) as error:
+            from repowatch.application.blockers import failure_details
+
             self._cancel_unstarted(token)
             with services.store.write() as records:
                 block(
@@ -473,6 +475,7 @@ class FormalRuntime:
                     run["task_id"],
                     now=services.clock(),
                     stage_id=stage["id"],
+                    **failure_details(error, stage=plan.key),
                 )
                 records.change("runtime_stages", {"id": stage["id"]}, {"state": "failed"})
             raise

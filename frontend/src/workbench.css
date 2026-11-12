@@ -1,0 +1,85 @@
+.workbench {
+    --panel-border: #d9e2ee;
+    --panel-radius: 16px;
+    --panel-gap: 16px;
+    color: #19243a;
+    font-size: 15px;
+    padding: 0 24px 16px;
+}
+
+.workbench [hidden] { display: none !important; }
+.workbench h1 { font-size: clamp(25px, 3vw, 34px); line-height: 1.25; }
+.workbench h2 { font-size: 21px; line-height: 1.35; margin-bottom: 10px; }
+.workbench h3 { font-size: 17px; line-height: 1.4; }
+.workbench p { margin-bottom: 10px; }
+.workbench .muted { color: #506078; font-size: 15px; }
+.workbench .badge { font-size: 14px; white-space: normal; }
+.workbench label, .workbench summary, .workbench table { font-size: 15px; }
+.workbench button { border-radius: 10px; min-height: 40px; padding: 7px 12px; }
+.workbench :focus-visible { outline: 2px solid #285ba5; outline-offset: 3px; }
+.workbench code { overflow-wrap: anywhere; }
+.workbench pre { font-size: 14px; }
+.workbench .workbench-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.workbench-header {
+    flex-flow: row wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px 20px;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 12px 0;
+    margin-bottom: 18px;
+}
+.workbench-header > .actions { margin-left: auto; }
+.workbench .workbench-brand { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-weight: 700; }
+.workbench-brand span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: #244f87; color: white; font-size: 13px; }
+.workbench-nav, .workbench-tabs { margin: 0; padding: 0; border: 0; }
+.workbench-tabs { border-bottom: 1px solid var(--panel-border); padding-bottom: 8px; margin-bottom: 12px; }
+.workbench-nav .active, .workbench-tabs .active { background: #e2edff; color: #204a88; border-color: #e2edff; }
+.workbench-intro > p, .workbench-intro > div > p { margin: 5px 0 0; color: #506078; }
+
+.workbench-stack, .workbench-grid { display: grid; gap: var(--panel-gap); }
+.workbench-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.workbench-wide { grid-column: 1 / -1; }
+.workbench-stack > *, .workbench-grid > * { min-width: 0; }
+.workbench-panel, .workbench main > section {
+    background: #fff;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    padding: 16px 18px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    margin: 0;
+}
+.workbench-panel > :last-child, .workbench-row > :last-child { margin-bottom: 0; }
+.workbench-row { padding: 10px 0; border-top: 1px solid var(--panel-border); }
+.workbench-row:first-of-type { border-top: 0; }
+.workbench-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.workbench-line > h2, .workbench-line > h3 { margin: 0; }
+.workbench-line + p { margin-top: 8px; }
+.workbench-callout { border-left: 3px solid #ad6718; padding-left: 10px; }
+.workbench .artifact { margin: 6px 0; min-width: 0; }
+.workbench progress { width: 100%; height: 8px; accent-color: #285ba5; margin: 0 0 8px; }
+.workbench footer { font-size: 13px; }
+.workbench-matrix td, .workbench-matrix th { padding: 9px 10px; vertical-align: middle; }
+.workbench-matrix tr:last-child td { border-bottom: 0; }
+.workbench-matrix td p { margin: 4px 0 0; }
+.workbench-mobile-label { display: none; }
+.workbench .fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+
+@media (max-width: 740px) {
+    .workbench { padding-inline: 14px; }
+    .workbench-header > .actions { margin-left: 0; }
+    .workbench-grid { grid-template-columns: minmax(0, 1fr); }
+    .workbench-panel { padding: 14px; }
+    .workbench-matrix, .workbench-matrix tbody { display: grid; gap: 10px; }
+    .workbench-matrix thead { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+    .workbench-matrix tr { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--panel-border); }
+    .workbench-matrix tr:last-child { border: 0; padding-bottom: 0; }
+    .workbench-matrix td { display: block; padding: 0; border: 0; }
+    .workbench-mobile-label { display: inline; color: #506078; }
+}
+
+@media (pointer: coarse) {
+    .workbench button, .workbench summary { min-height: 44px; }
+}

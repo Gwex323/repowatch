@@ -28,6 +28,10 @@ class CandidateIssues:
         with services.store.read() as records:
             run = execution_record(records, token, services.clock())
             task = dict(required(records, "tasks", id=run["task_id"]))
+            from repowatch.application.issue_scopes import split_authorized
+
+            if not split_authorized(records, task):
+                raise ConflictError("拆分来源或授权已变化，须重新确认范围")
             repository = dict(required(records, "repositories", id=task["repository_id"]))
         port = GitHubPublisher(
             vault=services.vault, credential_reference=repository["credential_reference"]
@@ -71,10 +75,24 @@ class CandidateIssues:
             run = execution_record(records, token, services.clock())
             task = dict(required(records, "tasks", id=run["task_id"]))
             repository = dict(required(records, "repositories", id=task["repository_id"]))
+            from repowatch.application.issue_scopes import split_authorized
+
+            if not split_authorized(records, task):
+                raise ConflictError("拆分来源或授权已变化，须重新确认范围")
+            origin = json.loads(task["input_json"]).get("scope_origin")
             manual = records.one(
                 "candidate_issue_decisions", task_id=task["id"], context_digest=lookup["digest"]
             )
             old_intent = records.one("publication_intents", task_id=task["id"], kind="issue")
+            reconciling = old_intent and old_intent["state"] in {
+                "dispatched",
+                "unknown",
+                "confirmed",
+            }
+            if origin and not reconciling:
+                goal = json.loads(task["input_json"])["confirmed_goal"]
+                if analysis.objective != goal["objective"] or analysis.criteria != goal["criteria"]:
+                    raise ConflictError("分析超出用户确认的独立目标")
         if analysis.sensitive:
             raise PermissionError("敏感候选未确认披露方式，不得创建公开 Issue")
         if manual:
@@ -83,6 +101,12 @@ class CandidateIssues:
                 "issue_number": manual["issue_number"],
                 "evidence": json.loads(manual["evidence_json"]),
             }
+        if origin and relation.get("relation") == "same":
+            with services.store.read() as records:
+                parent = required(records, "tasks", id=origin["task_id"])
+                parent_number = json.loads(parent["input_json"]).get("number")
+                if relation.get("issue_number") == parent_number:
+                    raise ConflictError("独立目标不得关联回包含多个目标的原 Issue")
         if old_intent and old_intent["state"] in {"dispatched", "unknown", "confirmed"}:
             request = json.loads(old_intent["request_json"])
             matches = [
@@ -146,6 +170,10 @@ class CandidateIssues:
                     )
 
             def send():
+                with services.store.read() as records:
+                    current = required(records, "tasks", id=task["id"])
+                    if not split_authorized(records, current):
+                        raise ConflictError("拆分来源或授权已变化，须重新确认范围")
                 latest_issues = lookup["port"].collection(
                     lookup["prefix"] + "/issues", params={"state": "all"}
                 )
@@ -192,6 +220,16 @@ class CandidateIssues:
             ):
                 raise PermissionError("Issue 创建身份未核实")
             issue = confirmed
+        origin = json.loads(task["input_json"]).get("scope_origin")
+        if origin:
+            with services.store.read() as records:
+                from repowatch.application.issue_scopes import split_authorized
+
+                if not split_authorized(records, required(records, "tasks", id=task["id"])):
+                    raise ConflictError("拆分来源或授权已变化，须重新确认范围")
+                parent = required(records, "tasks", id=origin["task_id"])
+                if str(issue["id"]) == parent["issue_id"]:
+                    raise ConflictError("独立目标不得关联回包含多个目标的原 Issue")
         issue_id = str(issue["id"])
         with services.store.write() as records:
             execution_record(records, token, services.clock())
@@ -223,6 +261,12 @@ class CandidateIssues:
         with services.store.write() as records:
             execution_record(records, token, services.clock())
             candidate = records.one("scan_candidates", request_task_id=task["id"])
+            if origin:
+                records.change(
+                    "task_sources",
+                    {"repository_id": repository["id"], "source_key": task["source_key"]},
+                    {"task_id": target},
+                )
             if candidate:
                 records.change(
                     "scan_candidates",

@@ -268,6 +268,15 @@ def routes(services):
             now=services.clock(),
         )
 
+    @router.post("/repositories/{repository_id}/remove")
+    def repository_remove(repository_id: str, body: Mutation):
+        return services.repositories.remove(
+            body.operation_id,
+            repository_id,
+            expected_revision=body.revision(),
+            now=services.clock(),
+        )
+
     @router.post("/providers/import")
     def import_providers(body: Mutation):
         return services.providers.save(body.operation_id, body.data["payload"])
@@ -347,6 +356,19 @@ def routes(services):
             body.operation_id, task_id, expected_revision=body.revision(), **body.data
         )
 
+    @router.post("/tasks/{task_id}/scope/decide")
+    def scope_decide(task_id: str, body: Mutation):
+        from repowatch.application.issue_scopes import decide_scope
+
+        return decide_scope(
+            services.store,
+            body.operation_id,
+            task_id,
+            expected_revision=body.revision(),
+            now=services.clock(),
+            **body.data,
+        )
+
     @router.post("/reasons/{reason_id}/resolve")
     def resolve(reason_id: str, body: Mutation):
         return services.control.resolve_reason(
@@ -354,9 +376,10 @@ def routes(services):
             reason_id,
             expected_revision=body.revision(),
             now=services.clock(),
-            explanation=body.data["explanation"],
+            explanation=body.data.get("explanation", ""),
             retry_plan=body.data.get("retry_plan"),
             retry_limits=body.data.get("retry_limits"),
+            automatic=body.data.get("automatic") is True,
         )
 
     @router.post("/diagnostics")
