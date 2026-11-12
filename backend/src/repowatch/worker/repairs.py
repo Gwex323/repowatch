@@ -16,6 +16,7 @@ from repowatch.application.issue_context import IssueContexts
 from repowatch.application.memory import MemorySourceUnavailable, RepositoryMemory
 from repowatch.application.pr_lifecycle import PullRequestLifecycle
 from repowatch.application.progress import ProgressService
+from repowatch.application.publication_paths import publication_target
 from repowatch.application.repair_evidence import RepairEvidence, file_manifest
 from repowatch.application.task_records import business_event, execution_record, required
 from repowatch.application.workspaces import WorkspaceService
@@ -147,7 +148,7 @@ class RepairCoordinator:
                 return self.wait(token, "pr_delivery_ended")
             pull = remote_prs[0]
             publication_head_sha = pull["head"]["sha"]
-            publication = json.loads(repository["publication_json"])
+            publication = publication_target(repository, previous_request)
             if (
                 str(pull["head"].get("repo", {}).get("id")) != publication["github_id"]
                 or pull["head"].get("ref") != previous_request["branch"]

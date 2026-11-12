@@ -12,8 +12,9 @@ from langsmith import tracing_context
 from pydantic import Field
 
 from repowatch.application.budgets import human, remember_operation, replay_operation
+from repowatch.application.credentials import SecretValue
 from repowatch.application.task_records import business_event
-from repowatch.domain.providers import ProviderModel
+from repowatch.domain.providers import ModelDiscovery, ProviderModel
 from repowatch.security import DEFAULT_REDACTOR
 
 ADAPTER_REVISION = 1
@@ -178,9 +179,29 @@ class ProviderAdapter:
             business_event(records, "model_list_requested", operation_id=operation_id)
         revision = self.service.revision(revision_id)
         configuration = json.loads(revision["configuration_json"])
-        result = {"models": [], "available": False, "error": None}
         try:
             secret = self.service.vault.read(revision["credential_reference"])
+        except Exception as error:
+            result = {"models": [], "available": False, "error": failure_code(error)}
+        else:
+            result = self._read_model_list(configuration["base_url"], secret)
+        with self.service.store.write() as records:
+            records.change(
+                "user_operations", {"id": operation_id}, {"result_json": json.dumps(result)}
+            )
+            business_event(records, "model_list_finished", operation_id=operation_id, **result)
+        return result
+
+    def discover_models(self, data, *, actor="local-user"):
+        human(actor)
+        discovery = ModelDiscovery.model_validate(data)
+        secret = SecretValue(discovery.api_key.get_secret_value())
+        DEFAULT_REDACTOR.register(secret)
+        return self._read_model_list(discovery.base_url, secret)
+
+    def _read_model_list(self, base_url, secret):
+        result = {"models": [], "available": False, "error": None}
+        try:
             with httpx.Client(
                 transport=self.transport,
                 timeout=15,
@@ -189,7 +210,7 @@ class ProviderAdapter:
             ) as client:
                 with client.stream(
                     "GET",
-                    configuration["base_url"] + "/models",
+                    base_url + "/models",
                     headers={"Authorization": "Bearer " + secret.reveal()},
                 ) as response:
                     response.raise_for_status()
@@ -216,9 +237,4 @@ class ProviderAdapter:
             )
         except Exception as error:
             result["error"] = failure_code(error)
-        with self.service.store.write() as records:
-            records.change(
-                "user_operations", {"id": operation_id}, {"result_json": json.dumps(result)}
-            )
-            business_event(records, "model_list_finished", operation_id=operation_id, **result)
         return result

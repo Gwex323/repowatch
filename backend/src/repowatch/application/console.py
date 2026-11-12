@@ -4,7 +4,9 @@ import json
 
 from repowatch.application.acceptance import acceptance_view
 from repowatch.application.artifacts import EventReader
+from repowatch.application.blockers import guidance
 from repowatch.application.task_records import required
+from repowatch.domain.task_records import content_digest
 from repowatch.security import DEFAULT_REDACTOR
 
 
@@ -26,15 +28,64 @@ class Console:
 
     def state(self):
         with self.store.read() as records:
-            tasks = [public_record(row) for row in records.find("tasks")]
+            repositories = [public_record(row) for row in records.find("repositories", removed=0)]
+            active_repositories = {repository["id"] for repository in repositories}
+            tasks = [
+                public_record(row)
+                for row in records.find("tasks")
+                if row["repository_id"] is None or row["repository_id"] in active_repositories
+            ]
+            active_tasks = {task["id"] for task in tasks}
+            delivery = {
+                row["task_id"]: {key: row[key] for key in ("number", "delivery_state", "ci_state")}
+                for row in records.find("pr_lifecycle")
+            }
+            for task in tasks:
+                task["delivery"] = delivery.get(task["id"])
+                if task["state"] != "waiting" or task["wait_reason"] not in {
+                    "information",
+                    "human_information",
+                    "approval",
+                }:
+                    continue
+                current = next(
+                    (
+                        row
+                        for row in records.find("triage_decisions", task_id=task["id"])
+                        if row["input_revision"] == task["input_revision"]
+                        and row["feedback_revision"] == task["feedback_revision"]
+                        and row["admission_revision"]
+                        == required(records, "repositories", id=task["repository_id"])[
+                            "admission_revision"
+                        ]
+                    ),
+                    None,
+                )
+                if current is None:
+                    continue
+                task["triage_reason"] = current["reason_code"]
+                if current["reason_code"] == "issue_lookup_required":
+                    evidence = json.loads(current["evidence_json"])
+                    relation = evidence.get("analysis", {}).get("issue_relation", {})
+                    number = relation.get("issue_number")
+                    if type(number) is int and any(
+                        item["number"] == number for item in evidence.get("issues", [])
+                    ):
+                        task["similar_issue_number"] = number
             result = {
                 "control": public_record(required(records, "global_control", singleton=1)),
-                "repositories": [public_record(row) for row in records.find("repositories")],
+                "repositories": repositories,
                 "tasks": tasks,
                 "reasons": [
-                    public_record(row) for row in records.find("block_reasons", resolved=0)
+                    public_record(row)
+                    for row in records.find("block_reasons", resolved=0)
+                    if row["task_id"] is None or row["task_id"] in active_tasks
                 ],
-                "renewals": [public_record(row) for row in records.find("budget_renewals")],
+                "renewals": [
+                    public_record(row)
+                    for row in records.find("budget_renewals")
+                    if row["task_id"] in active_tasks or row["owner_task_id"] in active_tasks
+                ],
                 "capabilities": [public_record(row) for row in records.find("capability_checks")],
                 "diagnostics": [
                     public_record(row) for row in records.find("diagnostic_authorizations")
@@ -49,15 +100,33 @@ class Console:
                             "github_sync_runs", repository_id=repository["id"], state="running"
                         )
                     )
+            for reason in result["reasons"]:
+                details = reason["details"]
+                if not details.get("stage") and reason["task_id"]:
+                    from repowatch.application.blockers import execution_stage
+
+                    runs = records.find("runs", task_id=reason["task_id"])
+                    latest = max(runs, key=lambda row: row["started_at"] or 0, default=None)
+                    if latest:
+                        details["stage"] = execution_stage(records, latest["id"])
+                reason["guidance"] = guidance(details.get("diagnosis", reason["code"]), details)
         for task in tasks:
             task["budget"] = self.budgets.view(task["budget_owner_task_id"])
         result["providers"], result["roles"] = self.providers.list(), self.roles.list()
         return result
 
     def task(self, identifier):
+        from repowatch.application.issue_scopes import scope_children, scope_view
+
         with self.store.read() as records:
-            task = public_record(required(records, "tasks", id=identifier))
+            task_row = required(records, "tasks", id=identifier)
+            repository = records.one("repositories", id=task_row["repository_id"])
+            if repository and repository["removed"]:
+                raise LookupError("仓库已从工作台移除")
+            task = public_record(task_row)
             task["acceptance"] = DEFAULT_REDACTOR.clean(acceptance_view(records, task))
+            task["scope"] = DEFAULT_REDACTOR.clean(scope_view(records, task))
+            task["scope_children"] = scope_children(records, task)
             task["triage_decisions"] = [
                 public_record(row) for row in records.find("triage_decisions", task_id=identifier)
             ]
@@ -100,6 +169,30 @@ class Console:
                 for run in task["runs"]
                 for artifact in records.find("artifacts", run_id=run["id"])
             ]
+            repository = records.one("repositories", id=task["repository_id"])
+            for session in task["repair_sessions"]:
+                frozen = session.get("frozen") or {}
+                evidence = session.get("evidence") or {}
+                artifact_ids = evidence.get("artifact_ids")
+                available = {item["id"] for item in task["artifacts"] if item["available"]}
+                session["current_context"] = bool(
+                    repository
+                    and session["state"] == "verified"
+                    and all(
+                        frozen.get(key) == task.get(key)
+                        for key in ("input_revision", "feedback_revision", "acceptance_revision")
+                    )
+                    and all(
+                        frozen.get(key) == repository[key]
+                        for key in ("admission_revision", "target_revision", "import_epoch")
+                    )
+                    and frozen.get("base_sha") == repository["target_sha"]
+                    and frozen.get("configuration_sha256")
+                    == content_digest(json.loads(task_row["configuration_json"]))
+                    and isinstance(artifact_ids, list)
+                    and bool(artifact_ids)
+                    and all(identifier in available for identifier in artifact_ids)
+                )
             task["reasons"] = [
                 public_record(row) for row in records.find("block_reasons", task_id=identifier)
             ]

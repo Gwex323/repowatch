@@ -11,9 +11,20 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
+from repowatch.security import DEFAULT_REDACTOR
+
 
 class WorkspaceError(RuntimeError):
-    pass
+    def __init__(self, message, *, diagnosis="docker_operation_failed", command="", detail=""):
+        super().__init__(message)
+        self.details = DEFAULT_REDACTOR.clean(
+            {
+                "diagnosis": diagnosis,
+                "detail": message,
+                "command": command,
+                "diagnostic_output": detail[:3000],
+            }
+        )
 
 
 def source_path(value):
@@ -38,7 +49,9 @@ class DockerWorkspaces:
         self.root.mkdir(parents=True, exist_ok=True)
         self.executable = executable or shutil.which("docker")
         if not self.executable:
-            raise WorkspaceError("Docker 不可用")
+            raise WorkspaceError(
+                "未找到 Docker，请安装并启动 Docker Desktop。", diagnosis="docker_unavailable"
+            )
 
     def docker(self, *arguments, input_bytes=None, timeout=180, check=True):
         environment = {
@@ -55,10 +68,47 @@ class DockerWorkspaces:
                 env=environment,
                 check=False,
             )
-        except (OSError, subprocess.TimeoutExpired):
-            raise WorkspaceError("Docker 操作无法完成，需核对容器状态") from None
+        except subprocess.TimeoutExpired:
+            raise WorkspaceError(
+                "Docker 操作超时，请检查引擎响应和主机资源。",
+                diagnosis="docker_timeout",
+                command=" ".join(arguments[:2]),
+            ) from None
+        except OSError:
+            raise WorkspaceError(
+                "无法启动 Docker 命令，请检查 Docker Desktop 安装。", diagnosis="docker_unavailable"
+            ) from None
         if check and result.returncode:
-            raise WorkspaceError("Docker 操作失败，请核对环境或镜像")
+            output = (result.stderr or result.stdout).decode("utf-8", errors="replace")
+            lowered = output.lower()
+            diagnosis, message = (
+                "docker_operation_failed",
+                "Docker 操作失败，请根据诊断输出检查环境。",
+            )
+            if any(
+                fragment in lowered
+                for fragment in (
+                    "failed to connect",
+                    "cannot connect",
+                    "is the docker daemon running",
+                    "dockerdesktoplinuxengine",
+                )
+            ):
+                diagnosis, message = (
+                    "docker_unavailable",
+                    "无法连接 Docker Desktop Linux 引擎，请启动引擎并等待就绪。",
+                )
+            elif arguments[:2] == ("image", "inspect") and "no such image" in lowered:
+                diagnosis, message = "docker_image_missing", "任务指定的 Docker 镜像尚未安装。"
+            elif "permission denied" in lowered or "access is denied" in lowered:
+                message = "Docker 访问被拒绝，请检查当前用户的 Docker Desktop 使用权限。"
+            elif "no space left" in lowered:
+                message = (
+                    "Docker 磁盘空间不足，请在 Docker Desktop 中清理可删除的缓存或增加磁盘空间。"
+                )
+            raise WorkspaceError(
+                message, diagnosis=diagnosis, command=" ".join(arguments[:2]), detail=output
+            )
         return result
 
     def archive(self, repository_id, sha):

@@ -12,6 +12,8 @@ from repowatch.api.security import COOKIE_NAME, LocalSessions
 from repowatch.api.static_files import FrontendFiles
 from repowatch.api.synchronizer import synchronize
 from repowatch.application.credentials import CredentialError
+from repowatch.application.github_accounts import GitHubAccountError
+from repowatch.application.github_ports import GitHubReadError
 from repowatch.application.providers import ProviderSaveError
 from repowatch.application.storage import ConflictError, StorageError
 from repowatch.security import install_log_redaction
@@ -92,6 +94,15 @@ def create_app(services=None, *, sessions: LocalSessions | None = None, static_d
     ):
         for error in errors:
             app.add_exception_handler(error, handler(code, status))
+
+    @app.exception_handler(GitHubAccountError)
+    async def github_account_error(_request, error):
+        return JSONResponse({"error": error.code}, status_code=error.status)
+
+    @app.exception_handler(GitHubReadError)
+    async def github_read_error(_request, error):
+        return JSONResponse({"error": "github_" + error.code}, status_code=422)
+
     app.include_router(routes(services))
     from repowatch.api.operations import operation_routes
 

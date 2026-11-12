@@ -4,10 +4,16 @@
 
 ## 当前目标与进展
 
+- 2026-11-12 阻塞界面已改为中文原因、失败步骤、处理建议与「已解决，重新检查」，用户无需填写说明或重试计划。Docker 错误保存脱敏诊断，旧空白记录在重新检查或受管重试时补充诊断。点击后生成处理记录与有限重试，全部恢复条件满足时一并恢复队列。关联回归 60 项通过、1 项按开关跳过，最后诊断补充后 API 专项 15 项通过，Edge 完整一键流程通过，报告截图 `.cache/p1-browser/1794475785321/control.png`。已离线安装并部署到原数据目录，前端资源核对通过，升级前备份 `backup-b8525947439f472ed57d096179bc64de` 校验通过。服务处于运行状态，常规队列暂停。
+- 2026-11-12 已确认仓库工作台采用原型「进度一览」，在 `feature/repository-workbench` 实施。主链路和全功能覆盖分别验收；多目标 Issue 的收敛／拆分入口及持久决定已实现，本地夹具通过，独立交付完整链路仍待验收。进度和验证范围见[任务清单](../../openspec/changes/repository-workbench/tasks.md)。
+- 2026-11-12 当前工作区已制作本地开发预览发行包，并离线安装到新目录后启动于 `127.0.0.1:8765`，使用之前的 P6 原生产品验收数据 `.repowatch/p6-native-python-cli/data`。仓库移除升级前一致备份 `backup-58878c97f1ee41019de6229900da71e5` 校验通过，业务库显式升级到 `0029_repository_removal`。`Gwex323/repowatch-p3-sandbox` 已从工作台本地移除，22 条历史任务和审计证据保留且不再排队；`Gwex323/gateway-model-assistant` 保持可见。队列仍暂停。该运行状态不代表未完成验收通过、提交或正式发布。
+
 - P0 与全部 P1 任务已完成。P1 提供正式串行执行位、累计预算和有限续期、实际命令监督、显式恢复、角色能力／有限重试、回环会话／API／UI、持久无进展检测及 GitHub 只读来源接口。E1 费用仍待按账单核实。P0 的对象交接、恢复／调度及编码选型结论沿用[门槛汇总](../development/p0-summary.md)和[编码资产评测](../development/embedding-evaluation.md)，不替代后续真实仓库验收。
 - 需求与最终架构已有基线、实施契约和 ADR，来源路由见 [项目索引](../../PROJECT_INDEX.md)。本次不重启需求访谈。
-- 活动变更为 `build-github-issue-agent-harness`：[proposal](../../openspec/changes/build-github-issue-agent-harness/proposal.md)、[design](../../openspec/changes/build-github-issue-agent-harness/design.md)、[11 个能力的 delta specs](../../openspec/changes/build-github-issue-agent-harness/specs/) 和 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 已存在。按当前勾选计为 89／89；P0—P6 实施与受控技术验收已闭合，本变更保留供复核、提交及后续明确授权的用户验收／归档。
-- 开发安装见[开发入口](../development/README.md)，P6 入口见[本地安装与运维](../development/local-operations.md)，P5 见[记忆生命周期与检索](../development/memory.md)。当前代码要求 schema `0027_local_operations`，本轮仅初始化新的 P6 专用测试库；原有两套 P3／P4 GitHub 验收库未升级，用户数据库未迁移。已按授权在两座既有 sandbox 新增 P6 专用分支与测试 Issue／PR，未调用付费模型。
+- `build-github-issue-agent-harness` 的 [tasks](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 为 89／89。P0—P6 实施与受控技术验收已闭合，变更保留供复核及后续明确授权的用户验收／归档。
+- 2026-11-11，`feature/github-account-binding` 新增独立的 [GitHub 账号绑定变更](../../openspec/changes/add-github-account-binding/proposal.md)。功能入口及旧仓库改绑见[本地控制](../development/local-control.md#github-账号与仓库登记)，迁移与验证范围见[持久化说明](../development/persistence.md#显式迁移与重启)和[变更任务](../../openspec/changes/add-github-account-binding/tasks.md)。用户数据库未迁移，未使用真实 PAT 或执行 GitHub 写入。
+- 2026-11-11，受管子任务未配置独立模型时沿用父 Agent 当前阶段的模型。规则见[实施契约](../implementation-contracts.md#2-进程及调用归属)，回归范围见 [OpenSpec 任务](../../openspec/changes/build-github-issue-agent-harness/tasks.md) 3.4。
+- 开发安装见[开发入口](../development/README.md)，P6 入口见[本地安装与运维](../development/local-operations.md)，P5 见[记忆生命周期与检索](../development/memory.md)。P6 验收只迁移临时测试库，未升级原有 P3／P4 验收库。已按授权在两座既有 sandbox 新增 P6 专用分支与测试 Issue／PR，未调用付费模型。
 - 定时、启动补偿及人工“检查更新”已接入目标分支 SHA 读取和版本补扫；重复目标观测或回到已排队版本时复用相应扫描、保留原预算和导入代次。PR／CI／评审按来源与版本保存，范围变化通过界面确认，返修保留外部 head 并对当前 base 重验；当前验收证据见下方。
 - 最新决定：本地扫描缺陷先完整查重再创建或关联 GitHub Issue；外部开放 PR 同问题等待、无关继续、关系不明请求用户判断。P3 已接入这些入口及人工决定持久回读，远端 PR／评论变化会递增反馈并重新分诊。已合并 PR 须验证提交进入当前目标历史并运行真实探针，已解决记为 `externally_resolved`，目标仍失败则以当前版本继续验证；不会凭 `merged` 自证解决。
 - 最新循环与预算决定：按真实产物检测无进展及振荡；复杂任务有进展但预计额度不足时，耗尽前正常等待用户批准有限追加，账本与检测历史不清零；已耗尽／无进展等仍全局阻塞且不因加额自动恢复。初值与恢复条件见[实施契约 §3](../implementation-contracts.md#无进展检测)。预算、检测、UI 和正式图集成已完成受控验收；真实扫描／修复事实生产已有受控样本，生产泛化及阈值校准仍待核实。

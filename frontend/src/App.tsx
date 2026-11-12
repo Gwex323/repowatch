@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { initialAmounts, initialize, labels, mutate, request, type Amounts, type Budget, type BusinessEvent, type Provider, type Reason, type Renewal, type State, type Task } from "./client";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { initialAmounts, initialize, labels, mutate, request, type Amounts, type Budget, type BusinessEvent, type Reason, type Renewal, type State, type Task } from "./client";
 import "./styles.css";
-import { Repositories } from "./Repositories";
+import "./workbench.css";
+import { GitHubAccounts } from "./GitHubAccounts";
 import { PullRequestLifecycle } from "./PullRequestLifecycle";
 import { MemoryPanel } from "./Memory";
 import { OperationsPanel } from "./Operations";
-type Run = (action: () => Promise<unknown>, message?: string) => Promise<void>;
+import { ProviderPanel, RolePanel } from "./ModelConfiguration";
+import { RepositoryWorkbench } from "./RepositoryWorkbench";
+import { CandidateComparison, IssueScope, RepairEvidence } from "./TaskEvidence";
+import { countAttention, pendingRenewals, repositoryName, taskAttention, taskStatus, taskTitle, type Run } from "./workbench";
 const statusNames: Record<string, string> = { queued: "排队", running: "执行中", waiting: "等待", blocked: "阻塞", ended: "结束", cancelled: "取消", pending: "待批准", stale: "需刷新", approved: "已批准", rejected: "已拒绝", completed: "通过", failed: "失败", available: "可用", exhausted: "已耗尽", revoked: "已撤销", configuration_required: "待配置" };
 const textStatus = (value: string) => statusNames[value] ?? value;
-const requiresInput = (task: Task) => task.state === "waiting" && ["information", "human_information", "approval", "review_scope", "pr_merge_conflict", "target_configuration", "pr_head_changed", "delivery_review"].includes(task.wait_reason ?? "");
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 function Evidence({ value, title = "查看持久记录" }: {
     value: unknown;
@@ -57,121 +60,6 @@ function BudgetView({ budget }: {
 </tr>)}</tbody>
 </table>
 </>;
-}
-function ProviderPanel({ state, run }: {
-    state: State;
-    run: Run;
-}) {
-    const [edit, setEdit] = useState<Provider | null>(null);
-    const [name, setName] = useState("");
-    const [url, setUrl] = useState("");
-    const [api, setApi] = useState("chat_completions");
-    const [key, setKey] = useState("");
-    const [model, setModel] = useState("");
-    const [effort, setEffort] = useState("");
-    const [batch, setBatch] = useState("");
-    const [models, setModels] = useState<Record<string, unknown>>({});
-    const select = (provider: Provider) => { setEdit(provider); setName(provider.configuration.name); setUrl(provider.configuration.base_url); setApi(provider.configuration.api); setKey(""); setModel(provider.configuration.models[0]?.model ?? ""); setEffort(provider.configuration.models[0]?.reasoning_effort ?? ""); };
-    const save = (event: FormEvent) => { event.preventDefault(); void run(async () => { const payload = { name, base_url: url, api, ...(key ? { api_key: key } : {}), models: [...(model ? [{ model, ...(effort ? { reasoning_effort: effort } : {}) }] : []), ...(edit?.configuration.models.slice(1) ?? [])] }; const result = await mutate(edit ? `/providers/${edit.id}/edit` : "/providers/import", { payload }, edit?.revision); setKey(""); setEdit(null); return result; }, "供应商配置已保存；测试需单独发起。"); };
-    return <section>
-<h2>供应商配置</h2>
-<p className="muted">保存配置不会请求模型。模型列表不可用时，可以手填模型。</p>
-<div className="cards">
-{state.providers.map(provider => <article key={provider.id}>
-<h3>
-{provider.configuration.name}</h3>
-<p>
-{provider.configuration.api} · 配置 {provider.revision} · 凭据 {provider.credential_revision}</p>
-<p>
-{provider.configuration.base_url}</p>
-<div className="actions">
-<button onClick={() => select(provider)}>编辑</button>
-<button onClick={() => void run(async () => { const result = await mutate(`/providers/${provider.revision_id}/models`, {}); setModels(value => ({ ...value, [provider.id]: result })); }, "模型列表读取结束。")}>显式读取模型列表</button>
-</div>
-{models[provider.id] !== undefined && <Evidence value={models[provider.id]} title="模型列表结果"/>}</article>)}</div>
-    <form onSubmit={save}>
-<h3>
-{edit ? `编辑 ${edit.configuration.name}` : "新增供应商"}</h3>
-<div className="fields">
-<label>名称<input value={name} onChange={e => setName(e.target.value)} required/>
-</label>
-<label>API 地址<input type="url" value={url} onChange={e => setUrl(e.target.value)} required/>
-</label>
-<label>接口<select value={api} onChange={e => setApi(e.target.value)}>
-<option value="chat_completions">Chat Completions</option>
-<option value="responses">Responses</option>
-</select>
-</label>
-<label>密钥{edit ? "（留空沿用原修订）" : ""}<input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} required={!edit}/>
-</label>
-<label>首个模型（可手填，其余保留）<input value={model} onChange={e => setModel(e.target.value)}/>
-</label>
-<label>Reasoning effort（可选）<input value={effort} onChange={e => setEffort(e.target.value)}/>
-</label>
-</div>
-<button type="submit">保存配置</button>
-{edit && <button type="button" onClick={() => { setEdit(null); setKey(""); }}>取消编辑</button>}</form>
-    <form onSubmit={event => { event.preventDefault(); void run(async () => { const result = await mutate("/providers/import", { payload: batch }); setBatch(""); return result; }, "整批导入已完成。"); }}>
-<h3>JSON 整批新增</h3>
-<p className="muted">支持单对象、数组或 providers 包装；任何冲突整批拒绝。</p>
-<label>选择 JSON 文件<input type="file" accept=".json,application/json" onChange={event => { const file = event.target.files?.[0]; if (file)
-        void run(async () => { if (file.size > 2 * 1024 * 1024)
-            throw new Error("文件超过 2 MiB。"); setBatch(await file.text()); }); }}/>
-</label>
-<label>JSON 文本<textarea value={batch} onChange={event => setBatch(event.target.value)} required spellCheck={false}/>
-</label>
-<button type="submit">整批新增</button>
-</form>
-  </section>;
-}
-function RolePanel({ state, run }: {
-    state: State;
-    run: Run;
-}) {
-    const [binding, setBinding] = useState("processor");
-    const [role, setRole] = useState("processor");
-    const [providerId, setProviderId] = useState(state.providers[0]?.id ?? "");
-    const [model, setModel] = useState("");
-    const [effort, setEffort] = useState("");
-    return <section>
-<h2>角色与模型</h2>
-<p className="muted">处理、独审和子任务可分别绑定模型；新运行使用新配置，旧运行保留原快照。连接成功不会自动判定角色就绪。</p>
-<div className="cards">
-{state.roles.map(item => <article key={item.binding_key}>
-<h3>
-{item.binding_key}</h3>
-<p>
-{item.definition.selection.model} · 修订 {item.revision}</p>
-<button onClick={() => { setBinding(item.binding_key); setRole(item.definition.role); setProviderId(item.definition.provider_id); setModel(item.definition.selection.model); setEffort(item.definition.selection.reasoning_effort ?? ""); }}>编辑绑定</button>
-</article>)}</div>
-<form onSubmit={event => { event.preventDefault(); void run(() => mutate(`/roles/${binding}`, { definition: { role, provider_id: providerId, selection: { model, reasoning_effort: effort || null } } }, state.roles.find(item => item.binding_key === binding)?.revision ?? 0), "角色绑定已保存，需核对对应能力。"); }}>
-<div className="fields">
-<label>绑定标识<input value={binding} onChange={e => setBinding(e.target.value)} list="binding-keys" required/>
-<datalist id="binding-keys">
-<option value="processor"/>
-<option value="reviewer"/>
-<option value="subtask.investigator"/>
-</datalist>
-</label>
-<label>角色<select value={role} onChange={e => setRole(e.target.value)}>
-<option value="processor">处理</option>
-<option value="reviewer">独审</option>
-</select>
-</label>
-<label>供应商<select value={providerId} onChange={e => setProviderId(e.target.value)} required>
-<option value="">请选择</option>
-{state.providers.map(item => <option key={item.id} value={item.id}>
-{item.configuration.name}</option>)}</select>
-</label>
-<label>模型<input value={model} onChange={e => setModel(e.target.value)} required/>
-</label>
-<label>Reasoning effort<input value={effort} onChange={e => setEffort(e.target.value)}/>
-</label>
-</div>
-<button type="submit">保存角色绑定</button>
-</form>
-<Evidence value={state.capabilities} title="能力核验范围与有效期"/>
-</section>;
 }
 function DiagnosticPanel({ state, run }: {
     state: State;
@@ -231,33 +119,30 @@ function DiagnosticPanel({ state, run }: {
 </article>)}</div>
 </section>;
 }
-function ReasonForm({ reason, run }: {
+function ReasonForm({ reason, run, openTask }: {
     reason: Reason;
     run: Run;
+    openTask: (id: string) => void;
 }) {
-    const [explanation, setExplanation] = useState("");
-    const [steps, setSteps] = useState("");
-    const [success, setSuccess] = useState("");
-    const [retry, setRetry] = useState(false);
-    return <article>
-<h3>
-{reason.code}</h3>
-<p>修订 {reason.revision} · {reason.task_id ?? "全局"}</p>
-<Evidence value={reason.details} title="阻塞依据"/>
-<form onSubmit={event => { event.preventDefault(); void run(() => mutate(`/reasons/${reason.id}/resolve`, { explanation, ...(retry ? { retry_plan: { steps: steps.split("\n").filter(Boolean), success_condition: success }, retry_limits: { max_attempts: 1, max_steps: 10, max_active_ms: 120000 } } : {}) }, reason.revision), "原因处理已保存；恢复仍需明确操作。"); }}>
-<label>实质处理依据<textarea value={explanation} onChange={e => setExplanation(e.target.value)} required/>
-</label>
-<label className="checkbox">
-<input type="checkbox" checked={retry} onChange={e => setRetry(e.target.checked)}/>授权一次有界重试</label>
-{retry && <>
-<label>具体步骤（每行一步）<textarea value={steps} onChange={e => setSteps(e.target.value)} required/>
-</label>
-<label>可观察的成功条件<input value={success} onChange={e => setSuccess(e.target.value)} required/>
-</label>
-<p className="muted">本次最多 1 次尝试、10 个工具步骤、120 秒有效执行。</p>
-</>}<button type="submit">提交处理结果</button>
-</form>
-</article>;
+    const [checking, setChecking] = useState(false);
+    const [resultMessage, setResultMessage] = useState("");
+    return <article className="workbench-row">
+        <h3>{reason.guidance?.title ?? "任务暂时无法继续"}</h3>
+        {reason.guidance?.stage && <p>失败步骤 · {reason.guidance.stage}</p>}
+        <p>{reason.guidance?.description ?? "查看阻塞记录后按建议处理。"}</p>
+        <ol>{(reason.guidance?.suggestions ?? ["检查任务配置与执行环境。"]).map(suggestion => <li key={suggestion}>{suggestion}</li>)}</ol>
+        <Evidence value={reason.details} title="技术诊断详情"/>
+        {reason.task_id && <button onClick={() => openTask(reason.task_id!)}>查看任务与配置</button>}
+        <p>处理后点击解决，系统将重新检查并在条件满足时恢复执行。</p>
+        {resultMessage && <p role="status">{resultMessage}</p>}
+        <button disabled={checking} onClick={() => {
+            setChecking(true);
+            void run(async () => {
+                const result = await mutate<{ resolved: boolean; message: string }>(`/reasons/${reason.id}/resolve`, { automatic: true }, reason.revision);
+                setResultMessage(result.message);
+            }, "检查已完成，请查看处理结果与当前队列状态。").finally(() => setChecking(false));
+        }}>{checking ? "正在检查…" : "已解决，重新检查"}</button>
+    </article>;
 }
 function RenewalForm({ renewal, run }: {
     renewal: Renewal;
@@ -280,15 +165,17 @@ function RenewalForm({ renewal, run }: {
 </form>
 </article>;
 }
-function TaskDetail({ task, state, run, onUpdated }: {
+function TaskDetail({ task, state, run, onUpdated, openSource, onBack, openTask }: {
     task: Task;
     state: State;
     run: Run;
     onUpdated: () => Promise<void>;
+    openSource?: () => void;
+    onBack: () => void;
+    openTask: (id: string) => void;
 }) {
     const [information, setInformation] = useState("");
     const [remoteReference, setRemoteReference] = useState("");
-    const [issueNumber, setIssueNumber] = useState(0);
     const [acceptanceKind, setAcceptanceKind] = useState<"bug" | "feature" | "refactor">(task.acceptance?.kind ?? "bug");
     const [acceptanceContent, setAcceptanceContent] = useState(pretty(task.acceptance?.content ?? { objective: "", criteria: [] }));
     useEffect(() => {
@@ -318,19 +205,25 @@ function TaskDetail({ task, state, run, onUpdated }: {
         return mutate(`/tasks/${basis.owner_task_id}/budget/adjust`, {increase:amounts, basis_sha256:basis.basis_sha256, reason}, basis.ledger.revision);
       }, "有限预算调整已保存；暂停和其他阻塞不会自动解除。");
     };
-    return <section className="task-detail">
-<h2>任务详情</h2>
-<p className="identifier">
-{task.id}</p>
-<p>
-<span className="badge">
-{textStatus(task.state)}</span> {task.mode} · 修订 {task.revision}</p>
-<p>前置条件／结果：{task.wait_reason ?? task.outcome ?? "以当前执行权、预算和证据门槛为准"}</p>
+    return <section className="task-detail workbench-stack">
+<div><button onClick={onBack}>← 返回列表</button></div>
+<section className="workbench-panel">
+<div className="workbench-line"><h2>{taskTitle(task)}</h2>{openSource && <button onClick={openSource}>回看扫描发现</button>}</div>
+<p>{taskStatus(task)}</p>
+</section>
+<CandidateComparison task={task} run={run} onUpdated={onUpdated}/>
+<IssueScope key={task.scope?.context_digest ?? task.id} task={task} run={run} onUpdated={onUpdated} openTask={openTask}/>
+{(task.issue_id || Boolean(task.repair_sessions?.length)) && <div className="workbench-grid">
+    <RepairEvidence task={task}/>
+    {task.pr_lifecycle ? <PullRequestLifecycle task={task} repository={state.repositories.find(item => item.id === task.repository_id)} run={run} onUpdated={onUpdated}/> :
+        <article className="workbench-panel"><h3>PR 交付</h3><p>{task.publication_intents?.some(intent => intent.kind === "pull_request") ? "有发布意图，尚无已核对的 PR 状态。可在操作区核对回执。" : "尚无受管 PR 记录。"}</p></article>}
+</div>}
+<section className="workbench-panel">
+<h3>任务操作</h3>
 <div className="actions">
 {["select", "request_triage", "cancel", "exclude", "reenable"].map(action => <button key={action} onClick={() => void operate(action)}>
 {({ select: "明确选择", request_triage: "重新分诊", cancel: "取消任务", exclude: "排除", reenable: "明确重新启用" })[action]}</button>)}</div>
-<Evidence value={task.input} title="当前输入与补充材料"/>
-<PullRequestLifecycle task={task} repository={state.repositories.find(item => item.id === task.repository_id)} run={run} onUpdated={onUpdated}/>
+<Evidence value={{ id: task.id, state: task.state, mode: task.mode, revision: task.revision, input: task.input, wait_reason: task.wait_reason, outcome: task.outcome }} title="当前输入与任务记录"/>
 <h3>分诊与验收规范 · 修订 {task.acceptance_revision ?? 1}</h3>
 {task.issue_context && <article><h4>远端占用与 PR 关系核对</h4><Evidence value={task.issue_context.facts} title="当前 Issue、评论及 PR 证据"/>
 <p>填写下方补充信息作为判断依据；判断仅适用于当前远端事实，执行前会重新读取。</p>
@@ -339,12 +232,12 @@ function TaskDetail({ task, state, run, onUpdated }: {
 {task.triage_decisions?.map(decision => <article key={decision.id}>
 <p>{decision.result} · {decision.reason_code} · 输入修订 {decision.input_revision} · 准入修订 {decision.admission_revision}</p>
 <Evidence value={decision.evidence} title="分诊依据"/>
-{typeof decision.evidence.lookup_digest === "string" && <><label>相同 Issue 编号<input type="number" min="1" value={issueNumber} onChange={event => setIssueNumber(Number(event.target.value))}/></label>
-{(["same", "none"] as const).map(choice => <button key={choice} disabled={!information.trim() || (choice === "same" && issueNumber < 1)} onClick={() => void run(async () => { await mutate(`/tasks/${task.id}/candidate-issue/decide`, {context_digest:decision.evidence.lookup_digest, decision:choice, issue_number:choice === "same" ? issueNumber : null, explanation:information}, task.revision); await onUpdated(); })}>{choice === "same" ? "关联已确认相同 Issue" : "确认完整查重无相似 Issue"}</button>)}</>}
 </article>)}
+<details><summary>修复原始记录与日志</summary>
 {task.repair_sessions?.map(session => <article key={session.id}><h4>修复证据 · {session.state}</h4><Evidence value={{frozen:session.frozen, evidence:session.evidence}} title="冻结内容、修改前后与独审证据"/></article>)}
 {task.repair_sessions?.flatMap(session => Array.isArray(session.evidence?.artifact_ids) ? session.evidence.artifact_ids : []).filter((value, index, values) => typeof value === "string" && values.indexOf(value) === index).map(identifier => <article key={String(identifier)}><button onClick={() => void run(async () => { const value = await request(`/tasks/${task.id}/artifacts/${identifier}`); setArtifactViews(previous => ({...previous, [String(identifier)]:value})); })}>读取验证日志／产物 {String(identifier)}</button>{artifactViews[String(identifier)] !== undefined && <Evidence value={artifactViews[String(identifier)]} title="日志正文与摘要"/>}</article>)}
-{task.artifacts?.filter(artifact => artifact.context.producer === "docker_runner").map(artifact => <article key={artifact.id}><button onClick={() => void run(async () => { const value = await request(`/tasks/${task.id}/artifacts/${artifact.id}`); setArtifactViews(previous => ({...previous, [artifact.id]:value})); })}>读取 Runner 日志 {artifact.id}</button>{artifactViews[artifact.id] !== undefined && <Evidence value={artifactViews[artifact.id]} title="Runner 日志正文与摘要"/>}</article>)}
+{task.artifacts?.filter(artifact => ["docker_runner", "native_runner"].includes(String(artifact.context.producer))).map(artifact => <article key={artifact.id}><button onClick={() => void run(async () => { const value = await request(`/tasks/${task.id}/artifacts/${artifact.id}`); setArtifactViews(previous => ({...previous, [artifact.id]:value})); })}>读取 Runner 日志 {artifact.id}</button>{artifactViews[artifact.id] !== undefined && <Evidence value={artifactViews[artifact.id]} title="Runner 日志正文与摘要"/>}</article>)}
+</details>
 {task.publication_intents?.map(intent => <article key={intent.id}><h4>发布意图 · {intent.kind} · {intent.state}</h4><Evidence value={intent} title="发布身份及回执"/>{["pull_request", "issue"].includes(intent.kind) && ["unknown", "dispatched", "confirmed"].includes(intent.state) && <button onClick={() => void operate(intent.kind === "issue" ? "reconcile_issue" : "reconcile_publication")}>请求核对远端回执</button>}</article>)}
 <Evidence value={task.relation_decisions} title="已保存的占用与 PR 关系决定"/>
 <Evidence value={task.candidate_issue_decisions} title="已保存的候选查重决定"/>
@@ -367,7 +260,7 @@ function TaskDetail({ task, state, run, onUpdated }: {
 <button type="submit">保存补充材料</button>
 <button type="button" disabled={!information.trim()} onClick={() => void operate("request_takeover", {explanation:information})}>请求接手并重新核验占用</button>
 </form>
-<form onSubmit={event => { event.preventDefault(); void run(async () => { const payload = JSON.parse(configuration); await mutate(`/tasks/${task.id}/operate`, {action:"update_configuration", payload}, task.revision); await onUpdated(); }); }}>
+<details><summary>高级任务设置</summary><form onSubmit={event => { event.preventDefault(); void run(async () => { const payload = JSON.parse(configuration); await mutate(`/tasks/${task.id}/operate`, {action:"update_configuration", payload}, task.revision); await onUpdated(); }); }}>
 <label>任务策略配置<textarea value={configuration} onChange={e => setConfiguration(e.target.value)} spellCheck={false} required/>
 </label>
 <button type="submit">保存任务配置</button>
@@ -376,7 +269,7 @@ function TaskDetail({ task, state, run, onUpdated }: {
 <label>人工优先级<input type="number" min="-1000" max="1000" value={manualPriority} onChange={e => setManualPriority(Number(e.target.value))}/>
 </label>
 <button type="submit">保存优先级</button>
-</form>
+</form></details>
 <h3>累计预算</h3>
 <BudgetView budget={task.budget}/>
 <form onSubmit={adjust}>
@@ -398,7 +291,7 @@ function TaskDetail({ task, state, run, onUpdated }: {
 {item.id}</p>
 <Evidence value={item.snapshot} title="固化配置与输入"/>
 <button onClick={() => void run(async () => { const result = await mutate(`/runs/${item.id}/report`, {}); setReports(value => ({ ...value, [item.id]: result })); }, "运行核对报告已生成。")}>重新核对旧运行</button>
-{reports[item.id] !== undefined && <RecoveryForm report={reports[item.id] as Record<string, unknown>} run={run}/>}</article>)}{state.renewals.filter(item => item.owner_task_id === task.budget_owner_task_id && ["pending", "stale"].includes(item.state)).map(item => <RenewalForm key={`${item.id}:${item.revision}`} renewal={item} run={run}/>)}</section>;
+{reports[item.id] !== undefined && <RecoveryForm report={reports[item.id] as Record<string, unknown>} run={run}/>}</article>)}{state.renewals.filter(item => item.owner_task_id === task.budget_owner_task_id && ["pending", "stale"].includes(item.state)).map(item => <RenewalForm key={`${item.id}:${item.revision}`} renewal={item} run={run}/>)}</section></section>;
 }
 function RecoveryForm({ report, run }: {
     report: Record<string, unknown>;
@@ -416,12 +309,28 @@ function RecoveryForm({ report, run }: {
 }
 export default function App() {
     const [state, setState] = useState<State | null>(null);
-    const [tab, setTab] = useState("tasks");
+    const [tab, setTab] = useState("repositories");
+    const [settingsTab, setSettingsTab] = useState("accounts");
+    const [inboxRepoId, setInboxRepoId] = useState<string | null>(null);
     const [selected, setSelected] = useState<Task | null>(null);
+    const detailRead = useRef(0);
+    const [detailLoading, setDetailLoading] = useState(false);
     const [events, setEvents] = useState<BusinessEvent[]>([]);
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
     const [busy, setBusy] = useState(false);
+    const closeTask = () => { detailRead.current++; setSelected(null); setDetailLoading(false); };
+    const openTask = (id: string) => {
+        const read = ++detailRead.current;
+        setError(""); setMessage(""); setDetailLoading(true);
+        void request<Task>(`/tasks/${encodeURIComponent(id)}`).then(value => {
+            if (read === detailRead.current) setSelected(value);
+        }).catch(failure => {
+            if (read === detailRead.current) setError(failure instanceof Error ? failure.message : "无法读取任务详情。");
+        }).finally(() => { if (read === detailRead.current) setDetailLoading(false); });
+    };
+    const navigate = (page: string) => { closeTask(); setInboxRepoId(null); setTab(page); };
+    const openInbox = (repositoryId: string) => { closeTask(); setInboxRepoId(repositoryId); setTab("items"); };
     const refresh = useCallback(async () => { setState(await request<State>("/state")); }, []);
     const refreshSelected = useCallback(async () => {
       if (selected) {
@@ -469,12 +378,22 @@ export default function App() {
         }).catch(failure => { if (active) setError(String(failure.message)); });
         return () => { active = false; source?.close(); if (refreshTimer) clearTimeout(refreshTimer); };
     }, [refresh]);
-    return <div className="app">
-<header>
+    const settings = [["accounts", "GitHub 账号"], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"],
+        ["memory", "记忆索引"], ["operations", "系统与维护"], ["tasks", "任务队列"], ["events", "业务事件"]];
+    const renderDetail = (openSource?: () => void) => selected && state && <TaskDetail key={selected.id}
+        task={selected} state={state} run={run} onUpdated={refreshSelected} onBack={closeTask} openSource={openSource} openTask={openTask}/>;
+    const scanEvent = events.filter(event => event.kind.startsWith("scan_") || event.kind.startsWith("candidate_")).at(-1)?.sequence ?? 0;
+    const inboxRepository = state?.repositories.find(repo => repo.id === inboxRepoId);
+    const inInbox = (taskId: string | null) => !inboxRepository || state?.tasks.some(task => task.id === taskId && task.repository_id === inboxRepository.id);
+    return <div className="app workbench">
+<header className="workbench-header">
 <div>
-<p className="eyebrow">本地受控工作台</p>
-<h1>RepoWatch</h1>
+<p className="workbench-brand"><span aria-hidden="true">RW</span> RepoWatch</p>
 </div>
+<nav aria-label="工作台导航" className="workbench-nav">
+{[["repositories", "仓库"], ["items", `待我处理${state ? " " + countAttention(state) : ""}`], ["settings", "设置与维护"]].map(([key, label]) =>
+    <button key={key} aria-current={tab === key ? "page" : undefined} className={tab === key ? "active" : ""} onClick={() => navigate(key)}>{label}</button>)}
+</nav>
 <div className="actions">
 <span className={`badge ${state?.control.paused ? "paused" : "ready"}`}>
 {state ? state.control.paused ? "常规队列已暂停" : "常规队列已放行" : "正在连接"}</span>
@@ -484,53 +403,55 @@ export default function App() {
 <button disabled={busy || !state.control.paused} onClick={() => void run(() => mutate("/control/resume", {}, state.control.revision), "已通过恢复门槛并明确恢复。")}>明确恢复</button>
 </>}</div>
 </header>
-<nav aria-label="工作台导航">
-{[["tasks", "任务"], ["items", `待人工事项 ${state ? state.reasons.length + state.renewals.filter(item => ["pending", "stale"].includes(item.state)).length + state.tasks.filter(requiresInput).length : ""}`], ["providers", "供应商"], ["roles", "角色模型"], ["diagnostics", "诊断"], ["repositories", "仓库"], ["memory", "记忆"], ["events", "业务事件"]].map(([key, label]) => <button className={tab === key ? "active" : ""} key={key} onClick={() => setTab(key)}>
-{label}</button>)}<button className={tab === "operations" ? "active" : ""} onClick={() => setTab("operations")}>系统与维护</button></nav>
 <div aria-live="polite">
 {error && <p className="notice error" role="alert">
 {error}</p>}{message && <p className="notice success" role="status">
-{message}</p>}{busy && <p className="muted">正在保存并核对结果…</p>}</div>
-{state && <main aria-busy={busy}>
-{tab === "operations" && <OperationsPanel run={run}/>}
-{tab === "memory" && <MemoryPanel state={state} run={run}/>}
-{tab === "tasks" && <div className="task-layout">
-<section>
-<h2>任务队列</h2>
-{state.tasks.length === 0 && <p className="empty">暂无任务。可先配置供应商与角色，再显式发起诊断。</p>}{state.tasks.map(task => <button className="task-row" key={task.id} onClick={() => void run(async () => setSelected(await request<Task>(`/tasks/${task.id}`)), "任务详情已读取。")}>
-<span>
-<strong>
-{task.mode}</strong>
-<small>
-{task.wait_reason ?? task.outcome ?? task.id}</small>
-</span>
-<span className="badge">
-{textStatus(task.state)}</span>
-</button>)}</section>
-{selected && <TaskDetail key={selected.id} task={selected} state={state} run={run} onUpdated={refreshSelected}/>}</div>}{tab === "providers" && <ProviderPanel state={state} run={run}/>}{tab === "roles" && <RolePanel state={state} run={run}/>}{tab === "diagnostics" && <DiagnosticPanel state={state} run={run}/>}{tab === "items" && <section>
-<h2>待人工事项</h2>
-<p className="muted">先查看证据、补充材料或调整配置；处理原因与明确恢复是两次操作。</p>
-{state.reasons.map(reason => <ReasonForm key={`${reason.id}:${reason.revision}`} reason={reason} run={run}/>)}{state.renewals.filter(item => ["pending", "stale"].includes(item.state)).map(item => <RenewalForm key={`${item.id}:${item.revision}`} renewal={item} run={run}/>)}{state.tasks.filter(item => ["waiting", "blocked"].includes(item.state)).map(task => <article key={task.id}>
-<h3>
-{task.mode} · {textStatus(task.state)}</h3>
-<p>
-{task.wait_reason ?? task.outcome}</p>
-<button onClick={() => { setTab("tasks"); void run(async () => setSelected(await request<Task>(`/tasks/${task.id}`))); }}>查看证据并处理任务</button>
-</article>)}{state.reasons.length === 0 && state.renewals.every(item => !["pending", "stale"].includes(item.state)) && <p className="empty">当前没有未解决的全局阻塞或预算申请。</p>}</section>}{tab === "repositories" && <><Repositories state={state} run={run} openTask={id => { setTab("tasks"); void run(async () => setSelected(await request<Task>(`/tasks/${id}`))); }} /><section>
-<h2>仓库</h2>
-{state.repositories.map(repo => <article key={repo.id}>
-<h3>
-{repo.github_id}</h3>
-<p>
-{repo.paused ? "仓库已暂停" : "仓库未暂停"}</p>
-<button onClick={() => void run(() => mutate(`/control/${repo.paused ? "resume" : "pause"}`, { repository_id: repo.id }, repo.revision))}>
-{repo.paused ? "明确恢复此仓库" : "暂停此仓库"}</button>
-</article>)}{state.repositories.length === 0 && <p className="empty">尚未导入仓库。系统诊断可在未导入仓库时进行。</p>}</section></>}{tab === "events" && <section>
+{message}</p>}{busy && <p className="muted">正在保存并核对结果…</p>}{detailLoading && <p role="status">正在读取详情…</p>}</div>
+{state && <main aria-busy={busy || detailLoading}>
+<div hidden={tab !== "repositories"}>
+    <RepositoryWorkbench state={state} run={run} openTask={openTask} openInbox={openInbox} closeTask={closeTask}
+        selectedTask={tab === "repositories" ? selected : null} renderDetail={renderDetail} scanEvent={scanEvent} busy={busy}/>
+</div>
+{tab === "items" && (selected ? renderDetail() : <div className="workbench-stack">
+    <div className="workbench-intro"><h1>待我处理{inboxRepository && ` · ${repositoryName(inboxRepository)}`}</h1>
+        <p>按建议处理阻塞后点击解决，系统会重新检查并恢复符合条件的任务。</p>
+        {inboxRepository && <button onClick={() => setInboxRepoId(null)}>查看所有仓库的待办</button>}</div>
+    <section className="workbench-panel">
+        {state.reasons.filter(reason => inInbox(reason.task_id)).map(reason => <ReasonForm key={reason.id} reason={reason} run={run} openTask={openTask}/>)}
+        {pendingRenewals(state).filter(item => inInbox(item.task_id) || inInbox(item.owner_task_id)).map(item => <RenewalForm key={`${item.id}:${item.revision}`} renewal={item} run={run}/>)}
+        {taskAttention(state).filter(task => inInbox(task.id)).map(task => {
+            const repo = state.repositories.find(item => item.id === task.repository_id);
+            return <div className="workbench-row workbench-line" key={task.id}>
+                <div><h3>{taskTitle(task)}</h3><p>{repo && `${repositoryName(repo)} · `}{taskStatus(task)}</p></div>
+                <button onClick={() => openTask(task.id)}>{task.triage_reason === "issue_lookup_required" ? "对比依据 →" : "查看证据并处理任务"}</button>
+            </div>;
+        })}
+        {countAttention(state, inboxRepository?.id) === 0 && <p>没有待处理事项。</p>}
+    </section>
+</div>)}
+{tab === "settings" && <div className="workbench-stack">
+<div className="workbench-intro"><h1>设置与维护</h1><p>管理账号、模型、运行诊断与本地系统。</p></div>
+<nav aria-label="设置与维护页面" className="workbench-tabs">{settings.map(([key, label]) =>
+    <button key={key} aria-current={settingsTab === key ? "page" : undefined} className={settingsTab === key ? "active" : ""} onClick={() => { closeTask(); setSettingsTab(key); }}>{label}</button>)}</nav>
+{settingsTab === "accounts" && <GitHubAccounts accounts={state.github_accounts ?? []} run={run}/>}
+{settingsTab === "operations" && <OperationsPanel run={run}/>}
+{settingsTab === "memory" && <MemoryPanel key="index" state={state} run={run} indexOnly/>}
+{settingsTab === "providers" && <ProviderPanel state={state} run={run}/>}
+{settingsTab === "roles" && <RolePanel state={state} run={run}/>}
+{settingsTab === "diagnostics" && <DiagnosticPanel state={state} run={run}/>}
+{settingsTab === "tasks" && (selected ? renderDetail() : <section className="workbench-panel">
+    <h2>任务队列</h2>
+    {!state.tasks.length && <p>暂无任务。可先配置模型，再发起诊断或登记仓库。</p>}
+    {state.tasks.map(task => <button className="task-row" key={task.id} onClick={() => openTask(task.id)}>
+        <strong>{taskTitle(task)}</strong><span>{taskStatus(task)}</span>
+    </button>)}
+</section>)}
+{settingsTab === "events" && <section className="workbench-panel">
 <h2>业务事件</h2>
 <p className="muted">按持久游标继续读取，重新打开页面不会启动任务。</p>
 {events.slice().reverse().map(event => <article key={event.sequence}>
 <h3>#{event.sequence} · {event.kind}</h3>
 <Evidence value={event.payload} title="事件内容"/>
-</article>)}</section>}</main>}<footer>本地单用户控制 · 所有执行以持久记录和当前授权为准</footer>
+</article>)}</section>}</div>}</main>}<footer>本地单用户控制 · 所有执行以持久记录和当前授权为准</footer>
 </div>;
 }

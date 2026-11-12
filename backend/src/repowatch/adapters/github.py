@@ -35,10 +35,12 @@ class GitHubReadAdapter:
             raise ValueError("GitHub 仓库路径无效")
         return "/repos/" + quote(owner, safe="") + "/" + quote(name, safe="")
 
-    def _get(self, path, *, params=None, etag=None):
+    def _get(self, path, *, params=None, etag=None, secret=None):
         headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
-        if self.reference:
-            headers["Authorization"] = "Bearer " + self.vault.read(self.reference).reveal()
+        if secret is None and self.reference:
+            secret = self.vault.read(self.reference)
+        if secret is not None:
+            headers["Authorization"] = "Bearer " + secret.reveal()
         if etag:
             headers["If-None-Match"] = etag
         try:
@@ -309,6 +311,19 @@ class GitHubReadAdapter:
             raise GitHubReadError("issue_changed_during_read")
         return {"issue": issue, "comments": comments, "pull_requests": details, "complete": True}
 
+    def authenticated_user(self, secret=None):
+        _, user, _ = self._get("/user", secret=secret)
+        if (
+            not isinstance(user, dict)
+            or type(user.get("id")) is not int
+            or user["id"] <= 0
+            or not isinstance(user.get("login"), str)
+            or not re.fullmatch(r"[A-Za-z0-9-]{1,39}", user["login"])
+            or user.get("type") != "User"
+        ):
+            raise GitHubReadError("execution_identity_unconfirmed")
+        return {"id": str(user["id"]), "login": user["login"]}
+
     def contribution(self, request: RepositoryRequest):
         _, user, _ = self._get("/user")
         if not isinstance(user, dict) or not isinstance(user.get("login"), str):
@@ -326,7 +341,11 @@ class GitHubReadAdapter:
         target = request.target_branch or upstream.get("default_branch")
         sha = self.branch(request.owner, request.name, target)
         maintained = upstream.get("permissions", {}).get("push") is True
-        if request.contribution_path == "direct":
+        if request.contribution_path == "auto":
+            if type(user.get("id")) is not int or user["id"] <= 0:
+                raise GitHubReadError("execution_identity_unconfirmed")
+            publication = None
+        elif request.contribution_path == "direct":
             if not maintained:
                 raise GitHubReadError("direct_write_permission_missing")
             publication = upstream
@@ -349,9 +368,10 @@ class GitHubReadAdapter:
                 or publication.get("disabled")
             ):
                 raise GitHubReadError("fork_write_or_relationship_missing")
-        if upstream.get("has_issues") is False:
-            raise GitHubReadError("issue_path_disabled")
-        self._get(self._path(request.owner, request.name) + "/pulls", params={"per_page": 1})
+        if publication is not None:
+            if upstream.get("has_issues") is False:
+                raise GitHubReadError("issue_path_disabled")
+            self._get(self._path(request.owner, request.name) + "/pulls", params={"per_page": 1})
         return {
             "github_id": str(upstream["id"]),
             "owner": upstream["owner"]["login"],
@@ -362,11 +382,16 @@ class GitHubReadAdapter:
             "private": upstream.get("private"),
             "maintained": maintained,
             "execution_login": user["login"],
+            "execution_user_id": str(user["id"]) if type(user.get("id")) is int else None,
             "contribution_path": request.contribution_path,
-            "publication": {
+            "publication": None
+            if publication is None
+            else {
                 "github_id": str(publication["id"]),
                 "owner": publication["owner"]["login"],
                 "name": publication["name"],
             },
-            "pr_path": "readable_recheck_write_at_delivery",
+            "pr_path": "resolve_at_delivery"
+            if publication is None
+            else "readable_recheck_write_at_delivery",
         }

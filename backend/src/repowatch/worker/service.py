@@ -2,6 +2,7 @@
 
 import json
 
+from repowatch.application.blockers import execution_stage, failure_details
 from repowatch.application.budgets import ProgressEvidenceUnavailable
 from repowatch.application.storage import ConflictError, StorageError
 from repowatch.application.task_records import block, required
@@ -239,7 +240,7 @@ class Worker:
                         reason,
                         run["task_id"],
                         now=services.clock(),
-                        detail=str(error),
+                        **failure_details(error, stage=execution_stage(records, token.run_id)),
                     )
                 try:
                     services.queue.complete(
@@ -248,11 +249,15 @@ class Worker:
                 except PermissionError:
                     return {"state": "reconciliation_required", "run_id": token.run_id}
                 return {"state": "blocked", "reason": reason}
-            except Exception:
+            except Exception as error:
                 with services.store.write() as records:
                     run = required(records, "runs", id=token.run_id)
                     block(
-                        records, "runtime_execution_rejected", run["task_id"], now=services.clock()
+                        records,
+                        "runtime_execution_rejected",
+                        run["task_id"],
+                        now=services.clock(),
+                        **failure_details(error, stage=execution_stage(records, token.run_id)),
                     )
                 try:
                     services.queue.complete(

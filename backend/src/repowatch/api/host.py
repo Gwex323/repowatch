@@ -19,6 +19,7 @@ from repowatch.application.candidate_issues import CandidateIssues
 from repowatch.application.console import Console
 from repowatch.application.control import ControlService
 from repowatch.application.diagnostics import DiagnosticService
+from repowatch.application.github_accounts import GitHubAccounts, GitHubAccountVault
 from repowatch.application.github_polling import GitHubPolling
 from repowatch.application.github_reads import GitHubReads, MemorySourceFacts
 from repowatch.application.github_sync import GitHubSynchronization
@@ -38,14 +39,20 @@ from repowatch.worker.commands import CommandSupervisor
 
 
 class HostServices:
-    def __init__(self, settings, *, vault=None, clock=time.time, transport=None):
+    def __init__(
+        self, settings, *, vault=None, clock=time.time, transport=None, github_transport=None
+    ):
         from repowatch.operations.maintenance import dependency_status
 
         dependency_status()
         self.settings, self.clock = settings, clock
         self.store = SQLiteBusinessStore(settings)
         namespace = sha256(str(settings.data_dir).casefold().encode()).hexdigest()[:40]
-        self.vault = vault if vault is not None else WindowsCredentialVault(namespace)
+        raw_vault = vault if vault is not None else WindowsCredentialVault(namespace)
+        self.vault = GitHubAccountVault(self.store, raw_vault)
+        self.github_accounts = GitHubAccounts(
+            self.store, raw_vault, GitHubReadAdapter(transport=github_transport).authenticated_user
+        )
         self.tasks, self.queue = TaskRecords(self.store), Orchestrator(self.store)
         self.budgets = BudgetService(self.store, settings.artifacts_dir)
         self.adjustments = BudgetAdjustments(self.store)
@@ -62,7 +69,9 @@ class HostServices:
         self.github_reads = GitHubReads(self.store, GitHubReadAdapter())
         self.repositories = RepositoryService(
             self.store,
-            lambda reference: GitHubReadAdapter(vault=self.vault, credential_reference=reference),
+            lambda reference: GitHubReadAdapter(
+                vault=self.vault, credential_reference=reference, transport=github_transport
+            ),
         )
         self.synchronization = GitHubSynchronization(
             self.store,

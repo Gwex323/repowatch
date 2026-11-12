@@ -8,8 +8,8 @@ const fields: Array<[keyof Content, string]> = [["symptoms", "问题特征"], ["
 const empty: Content = { symptoms: "", applicability: "", method: "", verification: "", limitations: "" };
 const states: Record<string, string> = { success: "已验证成功", failure: "失败经验，仅作风险提示", pending_review: "待返修复核", feedback_pending: "反馈待判断", manual_unverified: "人工未验证" };
 
-export function MemoryPanel({ state, run }: { state: State; run: (action: () => Promise<unknown>, message?: string) => Promise<void> }) {
-    const [repository, setRepository] = useState(state.repositories[0]?.id ?? "");
+export function MemoryPanel({ state, run, repositoryId, indexOnly = false }: { state: State; run: (action: () => Promise<unknown>, message?: string) => Promise<void>; repositoryId?: string; indexOnly?: boolean }) {
+    const [repository, setRepository] = useState(repositoryId ?? state.repositories[0]?.id ?? "");
     const [items, setItems] = useState<Memory[]>([]);
     const [selected, setSelected] = useState<Memory | null>(null);
     const [body, setBody] = useState<Content>(empty);
@@ -21,10 +21,12 @@ export function MemoryPanel({ state, run }: { state: State; run: (action: () => 
     const [audits, setAudits] = useState<unknown>(null);
     const reload = async () => {
         setResult(null);
-        const next = await request<Index>("/memory-index");
-        setIndex(next);
-        setModel((JSON.parse(next.configuration.configuration_json) as { model?: string }).model ?? "");
-        if (repository) {
+        if (indexOnly) {
+            const next = await request<Index>("/memory-index");
+            setIndex(next);
+            setModel((JSON.parse(next.configuration.configuration_json) as { model?: string }).model ?? "");
+        }
+        if (repository && !indexOnly) {
             const rows = await request<Memory[]>(`/repositories/${repository}/memories`);
             setItems(rows);
             setSelected(current => rows.find(item => item.id === current?.id) ?? null);
@@ -36,8 +38,9 @@ export function MemoryPanel({ state, run }: { state: State; run: (action: () => 
         await reload(); setSharing(false);
     }, action === "delete" ? "记忆已删除；未来检索与注入停用，原任务审计和已发送请求保留。" : "记忆操作已保存并回读。");
     return <section>
-        <h2>仓库记忆</h2><p>经验仅供参考，当前任务仍须独立验证。语义编辑保存为人工未验证的新版本。</p>
-        <label>记忆所属仓库<select value={repository} onChange={event => { setRepository(event.target.value); setSelected(null); setResult(null); setAudits(null); }}><option value="">请选择仓库</option>{state.repositories.map(item => <option key={item.id} value={item.id}>{item.github_id}</option>)}</select></label>
+        <h2>{indexOnly ? "记忆索引" : "仓库记忆"}</h2>
+        {!indexOnly && <><p>经验仅供参考，当前任务仍须独立验证。语义编辑保存为人工未验证的新版本。</p>
+        {!repositoryId && <label>记忆所属仓库<select value={repository} onChange={event => { setRepository(event.target.value); setSelected(null); setResult(null); setAudits(null); }}><option value="">请选择仓库</option>{state.repositories.map(item => <option key={item.id} value={item.id}>{item.github_id}</option>)}</select></label>}
         <button onClick={() => void run(reload, "记忆状态已刷新。")}>刷新记忆</button>
         <form onSubmit={event => { event.preventDefault(); void run(async () => setResult(await request(`/memories/search?repository_id=${encodeURIComponent(repository)}&query=${encodeURIComponent(query)}`)), "检索完成。"); }}>
             <label>检索经验<input value={query} onChange={event => setQuery(event.target.value)} required maxLength={16000}/></label><button disabled={!repository}>检索记忆</button>
@@ -59,12 +62,12 @@ export function MemoryPanel({ state, run }: { state: State; run: (action: () => 
             <label><input type="checkbox" style={{ width: "auto" }} checked={sharing} onChange={event => setSharing(event.target.checked)}/>我已审阅待共享正文，确认不含原始上下文或敏感信息</label>
             <button disabled={!sharing || selected.state !== "success" || !selected.enabled || Boolean(selected.deleted)} onClick={() => void act("share")}>保存去敏共享版本</button>
         </article>}
+        <button disabled={!repository} onClick={() => void run(async () => setAudits(await request(`/memory-audits?repository_id=${encodeURIComponent(repository)}`)), "请求依赖审计已读取。")}>查看复用审计</button>
+        {audits !== null && <details open><summary>请求依赖核验与留存范围</summary><pre>{JSON.stringify(audits, null, 2)}</pre></details>}</>}
         {index && <article><h3>记忆索引管理</h3><p>当前模式：{index.status.mode}；降级原因：{index.status.degradation ?? "无"}；待索引事件：{index.status.pending}</p><p>{index.selection_warning}；切换后需重建，缺少锁定资产时明确降级。</p>
             <label>本地语义编码模型<select value={model} onChange={event => setModel(event.target.value)}><option value="">关键词检索</option>{index.models.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
             <button onClick={() => void run(async () => { await mutate("/memory-index/configure", { model: model || null }, index.configuration.revision); await reload(); }, "索引配置已保存，需重建后核验。")}>保存索引配置</button>
             <button onClick={() => void run(async () => { await mutate("/memory-index/rebuild", {}, index.configuration.revision); await reload(); }, "索引重建结果已回读。")}>重建记忆索引</button>
         </article>}
-        <button disabled={!repository} onClick={() => void run(async () => setAudits(await request(`/memory-audits?repository_id=${encodeURIComponent(repository)}`)), "请求依赖审计已读取。")}>查看复用审计</button>
-        {audits !== null && <details open><summary>请求依赖核验与留存范围</summary><pre>{JSON.stringify(audits, null, 2)}</pre></details>}
     </section>;
 }

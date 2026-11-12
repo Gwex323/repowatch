@@ -10,6 +10,40 @@ from repowatch.domain.task_records import canonical_json
 from repowatch.worker.service import Worker
 
 
+def test_worker_persists_workspace_failure_diagnosis(api, monkeypatch):
+    from repowatch.adapters.docker_workspaces import WorkspaceError
+    from repowatch.worker.scans import ScanCoordinator
+
+    _, _, services, _ = api
+    repository = services.tasks.register_repository("workspace-failure", admission_mode="all_bugs")
+    task = services.tasks.ensure_task(repository, "import", mode="scan", now=0)
+    services.budgets.authorize_initial(
+        "workspace-budget",
+        task,
+        BudgetAmounts(
+            active_ms=600000, model_calls=10, tokens=10000, repair_rounds=5, recovery_rounds=5
+        ),
+        expected_revision=1,
+        reason="fixture",
+        now=0,
+    )
+    services.queue.set_pause(False, now=0)
+
+    def fail_workspace(self, token):
+        raise WorkspaceError(
+            "无法连接 Docker 引擎", diagnosis="docker_unavailable", command="image inspect"
+        )
+
+    monkeypatch.setattr(ScanCoordinator, "run", fail_workspace)
+    assert Worker(services).run_once()["reason"] == "runtime_execution_rejected"
+    state = services.console.state()
+    reason = next(item for item in state["reasons"] if item["task_id"] == task)
+    assert reason["details"]["diagnosis"] == "docker_unavailable"
+    assert reason["details"]["exception_type"] == "WorkspaceError"
+    assert reason["guidance"]["title"] == "无法连接 Docker 引擎"
+    assert reason["guidance"]["suggestions"]
+
+
 def test_worker_records_intentional_pause_as_safe_wait(api):
     _, _, services, _ = api
     repository = services.tasks.register_repository("p6-safe-stop", admission_mode="manual")

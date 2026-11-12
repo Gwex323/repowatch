@@ -10,6 +10,7 @@ from repowatch.api.host import HostServices
 from repowatch.api.security import LocalSessions
 from repowatch.configuration import StorageSettings
 from repowatch.domain.budget import BudgetAmounts
+from repowatch.domain.task_records import canonical_json
 from repowatch.operations.migrate import migrate
 
 
@@ -90,6 +91,12 @@ def main():
                     "start": 0,
                     "end": unit["end"],
                 },
+                {
+                    "title": "已跟进候选",
+                    "basis": "已确认由 Issue #38 跟进的独立夹具",
+                    "start": 0,
+                    "end": unit["end"],
+                },
             ],
         },
         now=time.time(),
@@ -98,6 +105,29 @@ def main():
         token, now=time.time(), state="waiting", wait_reason="human_information"
     )
     services.queue.set_pause(True, now=time.time())
+    issue_task = services.tasks.ensure_task(
+        repository, "github:issue:38", issue_id="38", mode="triage", now=time.time()
+    )
+    with services.store.write() as records:
+        records.change(
+            "tasks",
+            {"id": issue_task},
+            {
+                "input_json": canonical_json({"number": 38, "title": "已登记的问题"}),
+                "state": "waiting",
+                "wait_reason": "pr_review",
+            },
+        )
+        candidate = next(
+            row
+            for row in records.find("scan_candidates", batch_id=batch)
+            if json.loads(row["finding_json"])["title"] == "已跟进候选"
+        )
+        records.change(
+            "scan_candidates",
+            {"id": candidate["id"]},
+            {"request_task_id": issue_task, "state": "selected"},
+        )
     sessions = LocalSessions(f"http://127.0.0.1:{args.port}")
     app = create_app(
         services,

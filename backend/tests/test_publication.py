@@ -4,17 +4,31 @@ from types import SimpleNamespace
 import pytest
 from test_roles import kernel as kernel
 
+from repowatch.application.github_ports import GitHubReadError
 from repowatch.application.publication import Publisher, pr_body
+from repowatch.application.publication_paths import FORK_DISPATCHED
 from repowatch.application.task_records import TaskRecords
 from repowatch.domain.budget import BudgetAmounts
 from repowatch.domain.scans import readiness
 from repowatch.domain.task_records import canonical_json
 
 
-@pytest.mark.parametrize("path", ["direct", "fork"])
 @pytest.mark.parametrize("lost", [False, True])
 @pytest.mark.parametrize(
-    "gate", ["allowed", "occupied", "uncertain_pr", "merged_verified", "merged_unverified"]
+    "path,gate",
+    [
+        (path, gate)
+        for path in ("direct", "fork")
+        for gate in ("allowed", "occupied", "uncertain_pr", "merged_verified", "merged_unverified")
+    ]
+    + [
+        ("auto-direct", "allowed"),
+        ("auto-fork", "allowed"),
+        ("auto-existing", "allowed"),
+        ("auto-delayed", "allowed"),
+        ("auto-conflict", "allowed"),
+        ("auto-fork", "occupied"),
+    ],
 )
 def test_publication_identity_guard_and_lost_receipt_reconciliation(
     kernel, monkeypatch, path, lost, gate
@@ -25,9 +39,14 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
     services.vault = SimpleNamespace(read=lambda reference: None)
     repo = services.tasks.register_repository("100", admission_mode="all_bugs")
     task = services.tasks.ensure_task(repo, "issue:1", issue_id="101", mode="implement", now=0)
+    automatic = path.startswith("auto-")
+    direct = path in {"direct", "auto-direct"}
+    identity = {"execution_login": "worker"}
+    if automatic:
+        identity.update(contribution_path="auto", execution_user_id="18")
     publication = {
-        "github_id": "100" if path == "direct" else "200",
-        "owner": "upstream" if path == "direct" else "worker",
+        "github_id": "100" if direct else "200",
+        "owner": "upstream" if direct else "worker",
         "name": "repo",
     }
     with services.store.write() as records:
@@ -40,7 +59,7 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
                 "target_branch": "main",
                 "github_owner": "upstream",
                 "github_name": "repo",
-                "publication_json": canonical_json(publication),
+                "publication_json": None if automatic else canonical_json(publication),
                 "credential_reference": "fixture",
             },
         )
@@ -104,7 +123,7 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
             "repositories",
             {"id": repo},
             {
-                "identity_json": canonical_json({"execution_login": "worker"}),
+                "identity_json": canonical_json(identity),
                 "scan_ready_json": version,
                 "scan_ready_batch_id": "scan-ready",
             },
@@ -114,6 +133,8 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
     calls, pulls = [], []
     candidate_sha = "b" * 40
     branch_sha = ""
+    fork_exists = path in {"auto-existing", "auto-conflict"}
+    fork_writes = []
 
     class Objects:
         def repository(self, identifier):
@@ -140,6 +161,27 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
         def repository(self, owner, name):
             return {"github_id": "100" if owner == "upstream" else "200"}
 
+        def authenticated_user(self):
+            return {"id": "18", "login": "worker"}
+
+        def _get(self, path):
+            owner = "upstream" if path == "/repos/upstream/repo" else "worker"
+            if owner == "worker" and not fork_exists:
+                raise GitHubReadError("not_found")
+            return (
+                200,
+                {
+                    "id": 100 if owner == "upstream" else 200,
+                    "owner": {"login": owner},
+                    "name": "repo",
+                    "private": False,
+                    "permissions": {"push": direct or owner == "worker"},
+                    "fork": owner == "worker",
+                    "parent": {"id": 999 if path == "/repos/worker/repo" and conflict else 100},
+                },
+                {},
+            )
+
         def collection(self, path, **kwargs):
             return pulls
 
@@ -147,6 +189,16 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
             return pulls[0]
 
         def write(self, method, path, body):
+            nonlocal fork_exists
+            if path.endswith("/forks"):
+                assert method == "POST" and path == "/repos/upstream/repo/forks"
+                with services.store.read() as records:
+                    assert records.find("business_events", kind=FORK_DISPATCHED)
+                fork_writes.append(path)
+                if delayed:
+                    raise PermissionError("fork receipt lost")
+                fork_exists = True
+                return {}
             if method == "PATCH":
                 pulls[0]["body"] = body["body"]
                 pulls[0]["head"]["sha"] = candidate_sha
@@ -214,6 +266,8 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
         },
     )
     publisher = Publisher(services, evidence)
+    delayed = path == "auto-delayed"
+    conflict = path == "auto-conflict"
     if gate not in {"allowed", "merged_verified"}:
         outcome = publisher.publish(token, "session", {"digest": "same"})
         assert outcome["state"] == "waiting"
@@ -224,10 +278,21 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
             if gate == "merged_unverified"
             else "pr_relation_uncertain"
         )
-        assert pulls == [] and calls == []
+        assert pulls == [] and calls == [] and fork_writes == []
         with services.store.read() as records:
             assert not records.find("publication_intents", task_id=task)
         return
+    if conflict:
+        with pytest.raises(PermissionError, match="同名仓库"):
+            publisher.publish(token, "session", {"digest": "same"})
+        assert pulls == [] and calls == [] and fork_writes == []
+        return
+    if delayed:
+        for _ in range(2):
+            with pytest.raises(PermissionError, match="Fork 创建尚未确认"):
+                publisher.publish(token, "session", {"digest": "same"})
+        assert len(fork_writes) == 1 and pulls == [] and calls == []
+        fork_exists = True
     if lost:
         with pytest.raises(PermissionError, match="receipt lost"):
             publisher.publish(token, "session", {"digest": "same"})
@@ -244,6 +309,8 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
         intent = records.one("publication_intents", task_id=task, kind="pull_request")
         request = json.loads(intent["request_json"])
         assert request["publication_id"] == publication["github_id"]
+        if automatic:
+            assert request["publication"]["owner"] == publication["owner"]
         assert intent["state"] == "confirmed"
         assert records.one("managed_pull_requests", task_id=task)["pr_id"] == "500"
         assert records.one("execution_lease", singleton=1)["holder_run_id"] is None
@@ -257,7 +324,7 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
             records.change(
                 "repositories",
                 {"id": repo},
-                {"identity_json": canonical_json({"execution_login": "worker"})},
+                {"identity_json": canonical_json(identity)},
             )
         updated = publisher.publish(token, "session", {"digest": "same"})
         assert updated["pr_id"] == "500" and updated["sha"] == candidate_sha
@@ -265,6 +332,7 @@ def test_publication_identity_guard_and_lost_receipt_reconciliation(
         assert sum("push" in arguments for arguments in calls) == 2
         with services.store.read() as records:
             assert len(records.find("publication_revisions")) == 1
+    assert len(fork_writes) == int(path in {"auto-fork", "auto-delayed"})
 
 
 def test_pr_body_does_not_publish_probe_source_or_extra_closing_directives():

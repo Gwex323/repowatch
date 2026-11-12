@@ -76,6 +76,40 @@ def main():
         sessions=sessions,
         static_dir=Path(__file__).resolve().parents[1] / "frontend" / "dist",
     )
+    import repowatch.application.control as control_module
+    from repowatch.adapters.docker_workspaces import WorkspaceError
+
+    environment = {"ready": False}
+
+    def check_environment(*_args):
+        if not environment["ready"]:
+            raise WorkspaceError("无法连接 Docker 引擎", diagnosis="docker_unavailable")
+
+    control_module.check_environment = check_environment
+
+    @app.post("/api/v1/fixture/block-environment")
+    def block_environment(data: dict):
+        environment["ready"] = bool(data.get("ready"))
+        if data.get("create"):
+            with services.store.write() as records:
+                block(
+                    records,
+                    "runtime_execution_rejected",
+                    task,
+                    now=0,
+                    diagnosis="docker_unavailable",
+                    detail="无法连接 Docker 引擎",
+                    stage="创建扫描工作区",
+                )
+                bump_task(
+                    records,
+                    records.one("tasks", id=task),
+                    state="blocked",
+                    outcome="runtime_execution_rejected",
+                )
+        return {"ready": environment["ready"]}
+
+    app.router.routes.insert(0, app.router.routes.pop())
     # Pipe-only IPC for the test parent; never forward this line to console/log artifacts.
     print(
         json.dumps({"bootstrap": sessions.bootstrap_token, "task_id": task}), flush=True

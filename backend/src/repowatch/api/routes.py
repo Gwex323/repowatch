@@ -27,7 +27,7 @@ def routes(services):
 
     @router.get("/state")
     def state():
-        return services.console.state()
+        return {**services.console.state(), "github_accounts": services.github_accounts.list()}
 
     @router.get("/tasks/{task_id}")
     def task(task_id: str):
@@ -72,6 +72,39 @@ def routes(services):
     @router.get("/providers")
     def providers():
         return services.providers.list()
+
+    @router.get("/github/accounts")
+    def github_accounts():
+        return services.github_accounts.list()
+
+    @router.post("/github/accounts")
+    def connect_github_account(body: Mutation):
+        return services.github_accounts.save(
+            body.data["token"], username=body.data["username"], now=services.clock()
+        )
+
+    @router.post("/github/accounts/{account_id}/token")
+    def replace_github_token(account_id: str, body: Mutation):
+        return services.github_accounts.save(
+            body.data["token"],
+            identifier=account_id,
+            revision=body.revision(),
+            now=services.clock(),
+        )
+
+    @router.post("/github/accounts/{account_id}/verify")
+    def verify_github_account(account_id: str, body: Mutation):
+        return services.github_accounts.revalidate(
+            account_id, body.revision(), now=services.clock()
+        )
+
+    @router.post("/github/accounts/{account_id}/default")
+    def default_github_account(account_id: str, body: Mutation):
+        return services.github_accounts.set_default(account_id, body.revision())
+
+    @router.post("/github/accounts/{account_id}/disconnect")
+    def disconnect_github_account(account_id: str, body: Mutation):
+        return services.github_accounts.disconnect(account_id, body.revision())
 
     @router.post("/repositories/preflight")
     def repository_preflight(body: Mutation):
@@ -235,9 +268,22 @@ def routes(services):
             now=services.clock(),
         )
 
+    @router.post("/repositories/{repository_id}/remove")
+    def repository_remove(repository_id: str, body: Mutation):
+        return services.repositories.remove(
+            body.operation_id,
+            repository_id,
+            expected_revision=body.revision(),
+            now=services.clock(),
+        )
+
     @router.post("/providers/import")
     def import_providers(body: Mutation):
         return services.providers.save(body.operation_id, body.data["payload"])
+
+    @router.post("/providers/discover")
+    def discover_models(body: Mutation):
+        return services.adapter.discover_models(body.data)
 
     @router.post("/providers/{provider_id}/edit")
     def edit_provider(provider_id: str, body: Mutation):
@@ -310,6 +356,19 @@ def routes(services):
             body.operation_id, task_id, expected_revision=body.revision(), **body.data
         )
 
+    @router.post("/tasks/{task_id}/scope/decide")
+    def scope_decide(task_id: str, body: Mutation):
+        from repowatch.application.issue_scopes import decide_scope
+
+        return decide_scope(
+            services.store,
+            body.operation_id,
+            task_id,
+            expected_revision=body.revision(),
+            now=services.clock(),
+            **body.data,
+        )
+
     @router.post("/reasons/{reason_id}/resolve")
     def resolve(reason_id: str, body: Mutation):
         return services.control.resolve_reason(
@@ -317,9 +376,10 @@ def routes(services):
             reason_id,
             expected_revision=body.revision(),
             now=services.clock(),
-            explanation=body.data["explanation"],
+            explanation=body.data.get("explanation", ""),
             retry_plan=body.data.get("retry_plan"),
             retry_limits=body.data.get("retry_limits"),
+            automatic=body.data.get("automatic") is True,
         )
 
     @router.post("/diagnostics")

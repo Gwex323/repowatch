@@ -41,7 +41,19 @@ def main():
                 "result": "needs_information",
                 "reason_code": "issue_lookup_required",
                 "evidence_json": canonical_json(
-                    {"lookup_digest": "fixture-lookup", "issues": []}
+                    {
+                        "lookup_digest": "fixture-lookup",
+                        "issues": [
+                            {"number": 42, "title": "相似描述", "body": "缺少复现记录"}
+                        ],
+                        "analysis": {
+                            "issue_relation": {
+                                "relation": "uncertain",
+                                "issue_number": 42,
+                                "evidence": "现象相似，缺少相同触发条件的证据。",
+                            }
+                        },
+                    }
                 ),
             },
         )
@@ -126,6 +138,43 @@ def main():
     services.queue.set_pause(True, now=time.time())
     with services.store.write() as records:
         records.change("tasks", {"id": task}, {"state": "queued", "wait_reason": None})
+    scope_tasks = []
+    for index in range(2):
+        scope_task = services.tasks.ensure_task(
+            repo, f"scope-fixture:{index}", issue_id=f"scope-{index}", now=time.time()
+        )
+        with services.store.write() as records:
+            records.change(
+                "tasks",
+                {"id": scope_task},
+                {
+                    "state": "waiting",
+                    "wait_reason": "approval",
+                    "input_json": canonical_json(
+                        {"number": 60 + index, "title": "多目标夹具"}
+                    ),
+                },
+            )
+            records.add(
+                "triage_decisions",
+                {
+                    "id": f"scope-fixture-{index}",
+                    "task_id": scope_task,
+                    "input_revision": 1,
+                    "feedback_revision": 1,
+                    "admission_revision": 1,
+                    "result": "needs_approval",
+                    "reason_code": "scope_confirmation",
+                    "evidence_json": canonical_json(
+                        {
+                            "analysis": {
+                                "independent_goals": ["修复空游标", "修复重复重试"],
+                            }
+                        }
+                    ),
+                },
+            )
+        scope_tasks.append(scope_task)
     sessions = LocalSessions(f"http://127.0.0.1:{args.port}")
     app = create_app(
         services,
@@ -139,6 +188,7 @@ def main():
                 "task_id": task,
                 "candidate_id": candidate,
                 "relation_task_id": relation_task,
+                "scope_tasks": scope_tasks,
             }
         ),
         flush=True,

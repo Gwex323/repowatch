@@ -74,6 +74,7 @@ def execution_record(records: RecordPort, token: ExecutionToken, now: float):
 
 
 def block(records: RecordPort, code: str, task_id: str | None, *, now: float, **details):
+    details = DEFAULT_REDACTOR.clean(details)
     settle_ready(records, now)
     identifier = stable_id("block", task_id or "global", code)
     if records.one("block_reasons", id=identifier) is None:
@@ -604,6 +605,16 @@ class TaskRecords:
             settle_ready(records, now)
             changes: dict[str, Any] = {}
             running = task["state"] == "running"
+            from repowatch.application.issue_scopes import scope_children
+
+            if scope_children(records, task) and action not in {
+                "cancel",
+                "exclude",
+                "set_priority",
+            }:
+                raise ConflictError(
+                    "此 Issue 已拆为独立目标，请从各目标的处理入口继续；原跟踪项不执行批量修复"
+                )
             if action in {"exclude", "cancel"}:
                 cancel_dependencies(records, task, now)
                 changes.update(

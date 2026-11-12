@@ -11,6 +11,14 @@ export type Budget = {
 export type Task = {
     id: string;
     repository_id: string | null;
+    issue_id?: string | null;
+    input_revision?: number;
+    feedback_revision?: number;
+    triage_reason?: string;
+    similar_issue_number?: number;
+    scope?: { context_digest: string; goals: string[]; can_split: boolean; can_decide: boolean } | null;
+    scope_children?: Array<{ source_key: string; task_id: string }>;
+    delivery?: { number: number; delivery_state: string; ci_state: string } | null;
     mode: string;
     state: string;
     revision: number;
@@ -18,10 +26,10 @@ export type Task = {
     outcome: string | null;
     acceptance_revision?: number;
     acceptance?: { revision: number; kind: "bug" | "feature" | "refactor"; content: Record<string, unknown>; approved_revision: number | null; approved_by: string | null; current: boolean; approved: boolean; approval_source_revision?: number | null } | null;
-    triage_decisions?: Array<{ id: string; result: string; reason_code: string; evidence: Record<string, unknown>; input_revision: number; admission_revision: number }>;
+    triage_decisions?: Array<{ id: string; result: string; reason_code: string; evidence: Record<string, unknown>; input_revision: number; feedback_revision?: number; admission_revision: number; created_at?: number }>;
     issue_context?: { digest: string; facts: { issue: Record<string, unknown>; comments: unknown[]; pull_requests: Array<{ id: number; number: number; title: string; html_url: string; state: string }> } } | null;
     publication_intents?: Array<{id: string; kind: string; state: string; request: Record<string, unknown>; result: Record<string, unknown> | null}>;
-    repair_sessions?: Array<{id: string; state: string; frozen: Record<string, unknown> | null; evidence: Record<string, unknown> | null}>;
+    repair_sessions?: Array<{id: string; state: string; current_context: boolean; frozen: Record<string, unknown> | null; evidence: Record<string, unknown> | null}>;
     relation_decisions?: unknown[];
     candidate_issue_decisions?: unknown[];
     distillation_intents?: unknown[];
@@ -56,6 +64,8 @@ export type Provider = {
         name: string;
         base_url: string;
         api: string;
+        chat_token_parameter?: "max_tokens" | "max_completion_tokens" | null;
+        tool_choice?: "auto" | "required";
         models: Array<{
             model: string;
             reasoning_effort?: string | null;
@@ -68,6 +78,7 @@ export type Reason = {
     code: string;
     revision: number;
     details: Record<string, unknown>;
+    guidance?: { title: string; description: string; stage: string; suggestions: string[] };
 };
 export type Renewal = {
     id: string;
@@ -89,7 +100,15 @@ export type Role = {
         };
     };
 };
+export type GitHubAccount = {
+    id: string;
+    login: string;
+    is_default: number;
+    verified_at: number;
+    revision: number;
+};
 export type State = {
+    github_accounts?: GitHubAccount[];
     control: {
         paused: number;
         revision: number;
@@ -97,6 +116,8 @@ export type State = {
     repositories: Array<{
         id: string;
         github_id: string;
+        removed?: number;
+        removed_at?: number | null;
         paused: number;
         revision: number;
         github_owner?: string;
@@ -113,6 +134,7 @@ export type State = {
         } | null;
         contribution_path?: string;
         credential_reference?: string;
+        identity?: { execution_login: string } | null;
         import_epoch?: number;
         scan_ready_sha?: string;
         publication?: { owner: string; name: string };
@@ -139,6 +161,18 @@ export type BusinessEvent = {
     payload: Record<string, unknown>;
 };
 const errors: Record<string, string> = {
+    github_account_missing: "GitHub 账号已解绑，请重新选择。",
+    github_account_mismatch: "令牌对应的 GitHub 用户与所选账号不符。",
+    github_account_exists: "该 GitHub 账号已绑定，请使用「更换令牌」。",
+    github_account_in_use: "仍有仓库使用该账号，请先在仓库页改绑。",
+    github_account_preflight_stale: "预检使用的账号凭据已变更，请重新预检。",
+    github_authentication_or_permission: "GitHub 拒绝了请求。请检查令牌是否有效，并确认目标仓库及权限已授权。",
+    github_not_found: "GitHub 找不到目标资源，或所选账号没有访问权限。",
+    github_direct_write_permission_missing: "所选账号没有上游仓库的推送权限，请检查授权或选择 Fork 路径。",
+    github_fork_write_or_relationship_missing: "Fork 必须属于当前账号、指向指定上游，并允许该账号推送。",
+    github_issue_path_disabled: "上游仓库未启用 Issues。",
+    github_rate_limited: "GitHub 限制了请求频率，请稍后重试。",
+    github_transport_or_protocol_error: "暂时无法与 GitHub 通信，请稍后重试。",
     session_required: "控制会话已失效，请从本地启动入口重新打开。",
     revision_or_operation_conflict: "记录已变化或操作标识冲突，请刷新核对后重新提交。",
     operation_not_permitted: "当前前置条件未满足，请先处理阻塞、预算或旧运行。",

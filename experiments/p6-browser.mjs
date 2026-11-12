@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { settingsPage } from "./workbench-browser-navigation.mjs";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -28,15 +29,15 @@ try {
     let page = await context.newPage();
     const errors = []; context.on("page", value => value.on("pageerror", error => errors.push(error.message)));
     await page.goto(`http://127.0.0.1:${port}/#session=${setup.bootstrap}`);
-    await page.getByRole("button", { name: "系统与维护", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "系统与维护", exact: true })).toBeVisible();
-    await expect(page.getByText(/0027_local_operations/)).toBeVisible();
+    await settingsPage(page, "系统与维护");
+    await expect(page.getByRole("heading", { name: "系统与维护", exact: true, level: 2 })).toBeVisible();
+    await expect(page.getByText(/0029_repository_removal/)).toBeVisible();
     passed.push("production static system view");
     await page.getByLabel("完成任务产物保留天数").fill("40");
     await page.getByRole("button", { name: "保存保留策略", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("保留策略已保存");
     await page.reload();
-    await page.getByRole("button", { name: "系统与维护", exact: true }).click();
+    await settingsPage(page, "系统与维护");
     await expect(page.getByLabel("完成任务产物保留天数")).toHaveValue("40");
     passed.push("retention revision survives reload");
     await page.getByRole("button", { name: "创建一致备份", exact: true }).click();
@@ -87,8 +88,8 @@ try {
     await new Promise(done => setTimeout(done, 1500));
     page = await context.newPage();
     await page.goto(`http://127.0.0.1:${port}/`);
-    await page.getByRole("button", { name: "系统与维护", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "系统与维护", exact: true })).toBeVisible();
+    await settingsPage(page, "系统与维护");
+    await expect(page.getByRole("heading", { name: "系统与维护", exact: true, level: 2 })).toBeVisible();
     const after = await page.evaluate(async () => (await (await fetch("/api/v1/state")).json()));
     if (before.tasks.length !== after.tasks.length || after.control.paused !== 1 || after.tasks.some(task => task.budget.used.model_calls !== 0)) throw new Error("browser lifecycle changed execution");
     passed.push("browser close preserves services pause and zero model calls");
